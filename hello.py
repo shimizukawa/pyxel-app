@@ -21,7 +21,8 @@ import typing
 
 import pyxel
 
-WS_ADDR = os.getenv("WS_ADDR", "ws://127.0.0.1:9999")
+#WS_ADDR = os.getenv("WS_ADDR", "ws://127.0.0.1:9999")
+WS_ADDR = os.getenv("WS_ADDR", "wss://skylark-quiet-neatly.ngrok-free.app")
 WIDTH = 160
 HEIGHT = 120
 SPEED = 1
@@ -33,6 +34,7 @@ class PyWS:
         self.on_error = on_error
 
     def connect(self):
+        print("Connect to", WS_ADDR)
         self.ws = websocket.WebSocketApp(
             WS_ADDR,
             on_message=self._on_message,
@@ -107,7 +109,6 @@ try:
 except ImportError:
     from js import WebSocket as websocket
     WS = JSWS
-
 
 class App:
     def __init__(self):
