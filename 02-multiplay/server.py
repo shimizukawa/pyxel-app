@@ -14,7 +14,9 @@ clients = set()
 
 async def echo(websocket):
     _id = id(websocket)
-    await websocket.send(json.dumps({"id": _id, "type": "connected", "clients": len(clients)+1}))
+    await websocket.send(
+        json.dumps({"id": _id, "type": "connected", "clients": len(clients) + 1})
+    )
     clients.add(websocket)
     print(f"Client {_id} connected, count: {len(clients)}")
     try:

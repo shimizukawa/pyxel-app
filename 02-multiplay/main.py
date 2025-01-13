@@ -1,7 +1,7 @@
-# title: Pyxel small Demo1
+# title: Pyxel app 02-mutiplay
 # author: Takayuki Shimizukawa
-# desc: Pyxel small demo1
-# site: https://github.com/shimizukawa/pyxel-demo
+# desc: Pyxel app 02-multiplay
+# site: https://github.com/shimizukawa/pyxel-app
 # license: MIT
 # version: 1.0
 #
@@ -21,7 +21,7 @@ import typing
 
 import pyxel
 
-#WS_ADDR = os.getenv("WS_ADDR", "ws://127.0.0.1:9999")
+# WS_ADDR = os.getenv("WS_ADDR", "ws://127.0.0.1:9999")
 WS_ADDR = os.getenv("WS_ADDR", "wss://skylark-quiet-neatly.ngrok-free.app")
 WIDTH = 160
 HEIGHT = 120
@@ -29,7 +29,11 @@ SPEED = 1
 
 
 class PyWS:
-    def __init__(self, on_message: typing.Callable | None = None, on_error: typing.Callable | None = None):
+    def __init__(
+        self,
+        on_message: typing.Callable | None = None,
+        on_error: typing.Callable | None = None,
+    ):
         self.on_message = on_message
         self.on_error = on_error
 
@@ -68,7 +72,11 @@ class PyWS:
 
 
 class JSWS:
-    def __init__(self, on_message: typing.Callable | None = None, on_error: typing.Callable | None = None):
+    def __init__(
+        self,
+        on_message: typing.Callable | None = None,
+        on_error: typing.Callable | None = None,
+    ):
         self.on_message = on_message
         self.on_error = on_error
 
@@ -103,12 +111,16 @@ class JSWS:
         time.sleep(1)
         self.connect()
 
+
 try:
     import websocket
+
     WS = PyWS
 except ImportError:
     from js import WebSocket as websocket
+
     WS = JSWS
+
 
 class App:
     def __init__(self):

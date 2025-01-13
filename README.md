@@ -1,38 +1,33 @@
 # Pyxel 実装練習
 
-事前にuvをインストールしておく。Python等は不要。
+各ディレクトリのREADMEにプログラム固有の説明があります。
+
+## 実行
+
+以下は、共通の起動方法など。
+
+### 環境準備と実行
+
+事前にuvをインストールしておきます。Python等は不要。
 https://docs.astral.sh/uv/getting-started/installation/
 
 
-## アプリ起動
+### アプリ起動
 
-プログラムをコマンドラインから実行します。
+各ディレクトリに移動して、main.pyを実行します。
 
 ```shell
-uv run hello.py
+cd 01-circle
+uv run main.py
 ```
-これで操作できます。
 
-- 移動: 上下左右キー
-- 加速: スペース（移動と組み合わせ可能）
-- 終了: ESC, Q
-
-## アプリのHTML化とブラウザでの実行
+### アプリのHTML化とブラウザでの実行
 
 ブラウザで実行できるようにします。
 
 ```shell
-uvx pyxel package  . hello.py
-uvx pyxel app2html  . sample1.pyxapp
-uv run python http.server
+uv run make.py
+uv run python -m http.server
 ```
 
-これで表示されるURLをブラウザで開いて、sample1.html を開いてください。
-
-## マルチプレイサーバーの実行
-
-サーバーを起動しておくと、複数のアプリから接続して同時プレイができます。
-
-```shell
-uv run server.py
-```
+これで表示されるURLをブラウザで開いて、拡張子が `.html` ファイルを開いてください。
