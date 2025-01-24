@@ -20,6 +20,8 @@ import pyxel
 
 
 TITLE = "Pyxel app 03-slide"
+MD_FILENAME = "slide.md"
+
 LINE_HEIGHT = 16  # default font height
 LINE_NUMS = 15  # lines per page
 HEIGHT = LINE_HEIGHT * LINE_NUMS
@@ -46,7 +48,7 @@ FONTS = {
 
 class App:
     def __init__(self):
-        self.slides = self.load_slides("slide.md")
+        self.slides = self.load_slides(MD_FILENAME)
         self.page = 0
         pyxel.init(WIDTH, HEIGHT, title=TITLE)
 
@@ -75,9 +77,18 @@ class App:
             pyxel.quit()
 
         if pyxel.btnp(pyxel.KEY_RIGHT):
+            # forward
             self.page = min((self.page + 1), len(self.slides) - 1)
         elif pyxel.btnp(pyxel.KEY_LEFT):
+            # backward
             self.page = max((self.page - 1), 0)
+        elif pyxel.btnp(pyxel.KEY_SPACE):
+            if pyxel.btn(pyxel.KEY_SHIFT):
+                # backward
+                self.page = max((self.page - 1), 0)
+            else:
+                # forward
+                self.page = min((self.page + 1), len(self.slides) - 1)
 
     def draw(self):
         pyxel.cls(7)
