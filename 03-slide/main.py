@@ -10,31 +10,33 @@
 # dependencies = [
 #     "markdown-it-py",
 #     "pyxel",
-#     "pyxel-universal-font",
 # ]
 # ///
 
+import asyncio
 from pathlib import Path
 
-import PyxelUniversalFont as puf  # noqa
-from markdown_it import MarkdownIt
 import pyxel
 
+
 TITLE = "Pyxel app 03-slide"
-WIDTH = 800
-HEIGHT = 450
-LINES_PER_PAGE = 15
+WIDTH = 600
+HEIGHT = 360
+LINE_HEIGHT = 24  # lines per page = 360/24 = 15
 SPEED = 1
 
-# Font alias
-WRITERS = puf.get_writers()
-WRITERS["mincho"] = WRITERS["IPA_Mincho.ttf"]
-WRITERS["pmincho"] = WRITERS["IPA_PMincho.ttf"]
-WRITERS["gothic"] = WRITERS["IPA_Gothic.ttf"]
-WRITERS["pgothic"] = WRITERS["IPA_PGothic.ttf"]
-WRITERS["em"] = WRITERS["IPA_PGothic.ttf"]
-WRITERS["strong"] = WRITERS["IPA_Gothic.ttf"]
-WRITERS["literal"] = WRITERS["misaki_gothic.ttf"]
+# The Font class only supports BDF format fonts
+font_default = pyxel.Font("assets/b24.bdf")
+font_bold = pyxel.Font("assets/b24_b.bdf")
+font_italic = pyxel.Font("assets/b24_i.bdf")
+font_bolditalic = pyxel.Font("assets/b24_bi.bdf")
+font_literal = pyxel.Font("assets/b24.bdf")
+FONTS = {
+    "default": font_default,
+    "strong": font_bold,
+    "em": font_italic,
+    "literal": font_literal,
+}
 
 
 class App:
@@ -47,13 +49,15 @@ class App:
         pyxel.run(self.update, self.draw)
 
     def load_slides(self, filepath):
-        content = Path(filepath).read_text(encoding="utf-8")
+        from markdown_it import MarkdownIt
+
         md = MarkdownIt()
+        content = Path(filepath).read_text(encoding="utf-8")
         tokens = md.parse(content)
         slides = []
         current_slide = []
         for token in tokens:
-            if token.type == "heading_open" and token.tag in ["h1", "h2"]:
+            if token.type == "heading_open" and token.tag in ["h1", "h2", "h3"]:
                 current_slide = []
                 slides.append(current_slide)
             current_slide.append(token)
@@ -103,39 +107,16 @@ def use_color(fg: int, bg: int):
     return decorator
 
 
-def get_hl(text: str):
-    """half length: 半角文字数を返す"""
-    import unicodedata
-
-    w = 0
-    for c in text:
-        x = unicodedata.east_asian_width(c)
-        if x in "WFA":
-            w += 2
-        else:
-            w += 1
-    return w
-
-
 class Visitor:
     def __init__(self, app):
         self.app = app
-        self.line_height = HEIGHT // LINES_PER_PAGE
-        self.y = self.line_height // 2
-        self.indent_stack = [self.line_height]
-        self.line_pos = 0
-        self.size_stack = [int(self.line_height * 0.8)]
-        self.font_stack = ["pgothic"]
+        self.line_height = LINE_HEIGHT
+        self.x = LINE_HEIGHT // 2  # 初期padding
+        self.y = LINE_HEIGHT // 2  # 初期padding
+        self.indent_stack = [self.x]
+        self.font_stack = ["default"]
         self.color_stack = [(0, -1)]
-
-    @property
-    def x(self):
-        indent = self.indent_stack[-1]
-        return indent + self.size // 2 * self.line_pos
-
-    @property
-    def size(self):
-        return self.size_stack[-1]
+        self.section_level = 0
 
     @property
     def color(self):
@@ -146,21 +127,29 @@ class Visitor:
         return self.color_stack[-1][1]
 
     @property
-    def draw(self):
-        return WRITERS[self.font_stack[-1]].draw
+    def font(self):
+        return FONTS[self.font_stack[-1]]
 
     def _text(self, text):
-        hl = get_hl(text)
+        w = self.font.text_width(text)
         if self.bgcolor >= 0:
-            pyxel.rect(self.x, self.y, hl * self.size // 2, self.size, self.bgcolor)
-        self.draw(self.x, self.y, text, self.size, self.color)
-        self.line_pos += hl
+            pyxel.rect(self.x, self.y, w, self.line_height, self.bgcolor)
+        pyxel.text(self.x, self.y, text, self.color, self.font)
+        self.x += w
 
     def _crlf(self):
         # carriage return
-        self.line_pos = 0
+        self.x = self.indent_stack[-1]
         # line feed
-        self.y += self.size
+        self.y += self.line_height
+
+    def _indent(self, indent):
+        self.x += indent
+        self.indent_stack.append(self.x)
+
+    def _dedent(self):
+        dedent = self.indent_stack.pop() - self.indent_stack[-1]
+        self.x -= dedent
 
     def walk(self, tokens):
         for token in tokens:
@@ -185,27 +174,32 @@ class Visitor:
 
     def visit_heading_open(self, token):
         if token.tag == "h1":
-            self.size_stack.append(int(self.line_height * 2.0))
-            self._text("#")
+            self.section_level = 1
+            # TODO: タイトルは大きくセンタリング、本文はセンタリング
+            self._text("# ")
         elif token.tag == "h2":
-            self.size_stack.append(int(self.line_height * 1.3))
-            self._text("##")
+            self.section_level = 2
+            # TODO: タイトルは中くらいでセンタリング、本文はセンタリング
+            self._text("## ")
+        elif token.tag == "h3":
+            # TODO: タイトルは上部左寄せ、本文は左寄せ
+            self.section_level = 3
+            self._text("### ")
 
     def visit_heading_close(self, token):
         self._crlf()
         self._crlf()
-        self.size_stack.pop()
 
     def visit_text(self, token):
         self._text(token.content)
 
     def visit_bullet_list_open(self, token):
-        self.indent_stack.append(self.indent_stack[-1] + self.size // 2)
+        self._indent(LINE_HEIGHT // 2)
         self.y += self.line_height // 10
 
     def visit_bullet_list_close(self, token):
         self.y += self.line_height // 10
-        self.indent_stack.pop()
+        self._dedent()
 
     def visit_list_item_open(self, token):
         self._text("・")
@@ -247,19 +241,42 @@ class Visitor:
     @use_font("literal")
     @use_color(7, -1)
     def visit_fence(self, token):
-        hls = [get_hl(line) for line in token.content.splitlines()]
-        half = self.size // 2  # half size
-        w = self.size + max(hls) * half
-        h = self.size + len(hls) * self.size
+        hls = [self.font.text_width(line) for line in token.content.splitlines()]
+        w = LINE_HEIGHT + max(hls)
+        h = LINE_HEIGHT + len(hls) * LINE_HEIGHT
         pyxel.rect(self.x, self.y, w, h, 0)
 
-        self.indent_stack.append(self.indent_stack[-1] + half)
-        self.y += half
+        self._indent(LINE_HEIGHT // 2)
+        self.y += LINE_HEIGHT // 2
         for line in token.content.splitlines():
             self._text(line)
             self._crlf()
+        self._dedent()
 
-        self.indent_stack.pop()
+    def visit_hardbreak(self, token):
+        self._crlf()
 
 
-App()
+# micropipがasync/awaitを要求するため
+async def main():
+    try:
+        import micropip
+    except ImportError:
+        micropip = None
+
+    if micropip:
+        print("Installing ...")
+        await micropip.install("markdown-it-py")
+        print("installed successfully")
+
+    App()
+
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        # Pyodide上では用意されているイベントループを使って実行
+        asyncio.ensure_future(main())
+    else:
+        # ローカルの場合はあらたにイベントループで実行
+        asyncio.run(main())
