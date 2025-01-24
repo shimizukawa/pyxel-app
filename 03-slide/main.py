@@ -20,18 +20,23 @@ import pyxel
 
 
 TITLE = "Pyxel app 03-slide"
-WIDTH = 600
-HEIGHT = 360
-LINE_HEIGHT = 24  # lines per page = 360/24 = 15
+LINE_HEIGHT = 16  # default font height
+LINE_NUMS = 15  # lines per page
+HEIGHT = LINE_HEIGHT * LINE_NUMS
+WIDTH = HEIGHT * 16 // 9  # 16:9
 SPEED = 1
 
 # The Font class only supports BDF format fonts
-font_default = pyxel.Font("assets/b24.bdf")
-font_bold = pyxel.Font("assets/b24_b.bdf")
-font_italic = pyxel.Font("assets/b24_i.bdf")
-font_bolditalic = pyxel.Font("assets/b24_bi.bdf")
-font_literal = pyxel.Font("assets/b24.bdf")
+font_title = pyxel.Font("assets/b24.bdf")
+font_subtitle = pyxel.Font("assets/b16_b.bdf")
+font_default = pyxel.Font("assets/b14.bdf")
+font_bold = pyxel.Font("assets/b14_b.bdf")
+font_italic = pyxel.Font("assets/b14_i.bdf")
+font_bolditalic = pyxel.Font("assets/b14_bi.bdf")
+font_literal = pyxel.Font("assets/b14.bdf")
 FONTS = {
+    "title": font_title,
+    "subtitle": font_subtitle,
     "default": font_default,
     "strong": font_bold,
     "em": font_italic,
@@ -110,13 +115,13 @@ def use_color(fg: int, bg: int):
 class Visitor:
     def __init__(self, app):
         self.app = app
-        self.line_height = LINE_HEIGHT
         self.x = LINE_HEIGHT // 2  # 初期padding
         self.y = LINE_HEIGHT // 2  # 初期padding
         self.indent_stack = [self.x]
         self.font_stack = ["default"]
         self.color_stack = [(0, -1)]
         self.section_level = 0
+        self.align = "left"
 
     @property
     def color(self):
@@ -130,11 +135,25 @@ class Visitor:
     def font(self):
         return FONTS[self.font_stack[-1]]
 
+    @property
+    def line_height(self):
+        return self.font.text_width("あ")  # あの幅を行の高さとする
+
     def _text(self, text):
         w = self.font.text_width(text)
+        # アラインメント
+        if self.align == "center":
+            self.x = (WIDTH - w) // 2
+        elif self.align == "right":
+            self.x = WIDTH - w
+
+        # 背景色
         if self.bgcolor >= 0:
             pyxel.rect(self.x, self.y, w, self.line_height, self.bgcolor)
+
         pyxel.text(self.x, self.y, text, self.color, self.font)
+
+        # centerやrightの場合は連続で _text が呼ばれると位置がずれる
         self.x += w
 
     def _crlf(self):
@@ -175,23 +194,40 @@ class Visitor:
     def visit_heading_open(self, token):
         if token.tag == "h1":
             self.section_level = 1
-            # TODO: タイトルは大きくセンタリング、本文はセンタリング
-            self._text("# ")
+            self.font_stack.append("title")
+            self.align = "center"
+            self._crlf()
         elif token.tag == "h2":
             self.section_level = 2
-            # TODO: タイトルは中くらいでセンタリング、本文はセンタリング
-            self._text("## ")
+            self.font_stack.append("title")
+            self.align = "center"
+            self._crlf()
+            self._crlf()
         elif token.tag == "h3":
-            # TODO: タイトルは上部左寄せ、本文は左寄せ
             self.section_level = 3
-            self._text("### ")
+            self.font_stack.append("subtitle")
+            self.align = "left"
+            self._text("# ")
 
     def visit_heading_close(self, token):
         self._crlf()
         self._crlf()
+        self.font_stack.pop()
 
     def visit_text(self, token):
-        self._text(token.content)
+        content = token.content
+        # 横幅の8割をはみ出る場合は、複数行に分けて表示
+        max_width = (WIDTH * 8 // 10) - self.x
+        while content:
+            w = self.font.text_width(content)
+            if w > max_width:
+                i = max_width // self.font.text_width("あ")
+                self._text(content[:i])
+                self._crlf()
+                content = content[i:]
+            else:
+                self._text(content)
+                break
 
     def visit_bullet_list_open(self, token):
         self._indent(LINE_HEIGHT // 2)
