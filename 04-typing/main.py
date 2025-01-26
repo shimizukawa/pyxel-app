@@ -12,29 +12,22 @@
 # ]
 # ///
 
-import pyxel
+import json
 import random
 import time
+
+import pyxel
 
 TITLE = "Pyxel app 04-typing"
 WIDTH = 320
 HEIGHT = 180
 
-WORDS = [
-    "apple", "bag", "cat", "dog", "egg", "fan", "gift", "hat", "ice", "job",
-    "key", "lion", "map", "note", "owl", "pen", "queen", "rain", "sun", "toy",
-    "umbrella", "van", "wall", "yard", "zoo", "boy", "girl", "man",
-    "woman", "water", "fire", "wood", "metal", "stone", "fish", "bird", "paper",
-    "book", "foot", "hand", "head", "eye", "ear", "mouth", "nose", "tooth",
-    "tongue", "hair", "arm", "leg", "knee", "toe", "finger", "thumb", "desk",
-    "chair", "table", "door", "window", "floor", "ceiling", "light", "sound",
-    "music", "art", "dance", "sing", "run", "walk", "jump", "sit", "stand",
-    "laugh", "cry", "smile", "frown", "think", "write", "read", "count", "play",
-    "work", "rest", "sleep", "dream", "eat", "drink", "cook", "bake", "drive",
-    "ride", "clean", "wash", "open", "close", "push", "pull", "give", "take"
-]
-
 font = pyxel.Font("assets/umplus_j12r.bdf")
+
+
+def load_words():
+    with open("assets/words.json", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def draw_text_with_border(x, y, s, col, bcol, font):
@@ -55,23 +48,51 @@ class App:
     def __init__(self):
         pyxel.init(WIDTH, HEIGHT, title=TITLE)
         pyxel.load("assets/res.pyxres")
-        self.cur_pos = 0
-        self.cur_text = random.choice(WORDS)
-        self.score = 0
-        self.error = 0
-        self.words = 0
-        self.start = time.time()
-        self.time = 0
+        self.reset()
 
         # run forever
         pyxel.run(self.update, self.draw)
 
+    def reset(self):
+        words = list(load_words())
+        random.shuffle(words)
+        words.append("")  # 開始前は空にする
+        self.word_list = words
+        self.cur_pos = 0
+        self.score = 0
+        self.error = 0
+        self.words = 0
+        self.start_time = time.time()
+        self.time = 0
+        self.started = False
+
+    def start(self):
+        self.word_list.pop()  # 最初の文字列を表示
+        self.started = True
+
+    def finish(self):
+        self.started = False
+
+    @property
+    def cur_text(self):
+        return self.word_list[-1].lower()
+
     def update(self):
-        if self.time >= 60:
-            # なにも更新しない（ESCで終了）
+        if not self.started:
+            # スタートしていない
+            if pyxel.btnp(pyxel.KEY_SPACE):
+                # スペースで開始
+                self.reset()
+                self.start()
+            else:
+                # なにもしない
+                return
+        elif self.time >= 60:
+            # スタート後60秒以上経過している
+            self.finish()
             return
     
-        self.time = time.time() - self.start
+        self.time = time.time() - self.start_time
         ch = self.cur_text[self.cur_pos]
         for c in range(ord("a"), ord("z") + 1):
             if ch == chr(c) and pyxel.btnp(c):
@@ -89,8 +110,20 @@ class App:
         if self.cur_pos == len(self.cur_text):
             # 入力完了
             self.words += 1
-            self.cur_text = random.choice(WORDS)
+            self.word_list.pop()
             self.cur_pos = 0
+
+    @property
+    def tpm(self):
+        if self.time > 0:
+            return self.score / self.time * 60
+        return 0
+
+    @property
+    def epm(self):
+        if self.time > 0:
+            return self.error / self.time * 60
+        return 0
 
     def draw(self):
         pyxel.cls(1)
@@ -105,8 +138,23 @@ class App:
         pyxel.text(8, 8, f"TIME: {self.time: >4.1f} / 60", 7, font)
         pyxel.text(8, 20, f"WORDS: {self.words: >2}", 7, font)
         pyxel.text(120, 8, f"TYPE: {self.score: >5}", 7, font)
-        pyxel.text(120, 20, f"TPM: {self.score / self.time * 60: >8.1f}", 7, font)
+        pyxel.text(120, 20, f"TPM: {self.tpm: >8.1f}", 7, font)
         pyxel.text(220, 8, f"ERROR: {self.error: >4}", 14, font)
-        pyxel.text(220, 20, f"EPM: {self.error / self.time * 60: >8.1f}", 14, font)
+        pyxel.text(220, 20, f"EPM: {self.epm: >8.1f}", 14, font)
+
+        if not self.started:
+            if self.time >= 60:
+                # ゲーム終了
+                text = "TIME UP!\nPRESS SPACE TO START"
+            else:
+                # ゲーム開始前
+                text = "PRESS SPACE TO START"
+
+            # 色を3フレーム毎に変える
+            color = (pyxel.frame_count // 3) % 12 + 4
+            for i, line in enumerate(text.splitlines()):
+                # 行ごとにセンタリング
+                x = (pyxel.width - font.text_width(line)) // 2
+                draw_text_with_border(x, pyxel.height // 2 + i * 10, line, color, 0, font)
 
 App()
