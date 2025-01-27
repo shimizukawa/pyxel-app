@@ -147,7 +147,14 @@ class WordSet:
                 word.y = row * LINE_HEIGHT
                 col += len(word)
 
+    @property
+    def is_finished(self) -> bool:
+        return self.word_pos >= len(self.words)
+
     def test_input(self) -> tuple[bool | None, bool]:
+        if self.is_finished:
+            return None, False
+
         corr, comp = self.words[self.word_pos].test_input()
         if comp:
             self.word_pos += 1
@@ -207,8 +214,8 @@ class App:
             else:
                 # なにもしない
                 return
-        elif self.time >= 60:
-            # スタート後60秒以上経過している
+        elif self.time >= 60 or self.wordset.is_finished:
+            # スタート後60秒以上経過しているか、全ての単語を入力した
             self.finish()
             return
 
@@ -256,9 +263,12 @@ class App:
         self.wordset.draw(LEFT_MARGIN, 50)
 
         if not self.started:
-            if self.time >= 60:
+            if self.wordset.is_finished:
+                # ゲームクリア
+                text = "FINISHED!\nPRESS SPACE TO START"
+            elif self.time > 0:
                 # ゲーム終了
-                text = "TIME UP!\nPRESS SPACE TO START"
+                text = "TIMES UP!\nPRESS SPACE TO START"
             else:
                 # ゲーム開始前
                 text = "PRESS SPACE TO START"
