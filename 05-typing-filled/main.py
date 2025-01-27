@@ -1,6 +1,6 @@
-# title: Pyxel app 04-typing
+# title: Pyxel app 05-typing-filled
 # author: Takayuki Shimizukawa
-# desc: Pyxel app 04-typing
+# desc: Pyxel app 05-typing-filled
 # site: https://github.com/shimizukawa/pyxel-app
 # license: MIT
 # version: 1.0
@@ -15,19 +15,108 @@
 import json
 import random
 import time
+import dataclasses
 
 import pyxel
 
-TITLE = "Pyxel app 04-typing"
+TITLE = "Pyxel app 05-typing-filled"
 WIDTH = 320
 HEIGHT = 180
+CHAR_WIDTH = 6
+LEFT_MARGIN = WIDTH // 10
+CHAR_PER_LINE = (WIDTH - LEFT_MARGIN * 2) // CHAR_WIDTH
+MAX_LINES = 8
 
 font = pyxel.Font("assets/umplus_j12r.bdf")
 
 
 def load_words():
     with open("assets/words.json", encoding="utf-8") as f:
-        return json.load(f)
+        words = json.load(f)
+    words = [s for s in words if s.isalpha()]
+    random.shuffle(words)
+    return words
+
+
+@dataclasses.dataclass
+class Line:
+    words: list[str] = dataclasses.field(default_factory=list)
+    chars_per_line: int = CHAR_PER_LINE
+
+    def __getitem__(self, i):
+        return self.words[i]
+
+    def __len__(self):
+        return len(self.words)
+
+    def __iter__(self):
+        yield from self.words
+
+    def append(self, word):
+        self.words.append(word)
+
+    @property
+    def text(self):
+        return " ".join(self.words)
+
+    def can_add(self, word):
+        return len(self.text) + len(word) <= self.chars_per_line
+
+    def is_full(self):
+        return len(self.text) >= self.chars_per_line
+
+
+class Lines:
+    def __init__(self):
+        self.lines = [Line() for _ in range(MAX_LINES)]
+        self.line_counts = [0] * 10
+
+    def __getitem__(self, i):
+        return self.lines[i]
+
+    def __len__(self):
+        """単語数"""
+        return sum(len(line) for line in self.lines)
+
+    def __iter__(self):
+        yield from self.lines
+
+    def is_full(self):
+        return all(line.is_full() for line in self.lines)
+
+    def append(self, word: str):
+        if self.is_full():
+            return
+        for line in self.lines:
+            if line.can_add(word):
+                line.append(word)
+                break
+        self.line_counts = [len(line) for line in self.lines]
+
+    def get_word(self, pos: int):
+        for count, line in zip(self.line_counts, self.lines):
+            if pos < count:
+                return line[pos]
+            pos -= count
+
+    def get_state(self, pos: int):
+        """i番目の単語について、単語、i行目、n文字目を返す"""
+        for i, (count, line) in enumerate(zip(self.line_counts, self.lines)):
+            if pos < count:
+                return line[pos], i, len(" ".join(line[:pos]))
+            pos -= count
+
+
+def create_lines(words, chars_per_line=CHAR_PER_LINE):
+    """1行の文字数にできるだけ詰めて複数行の文字列のリストを作る"""
+    lines = Lines()
+    _total = len(words)
+    for _i, word in enumerate(words):
+        lines.append(word)
+        if lines.is_full():
+            break
+    print(f"Words: {_i}/{_total}")
+    return lines
 
 
 def draw_text_with_border(x, y, s, col, bcol, font):
@@ -54,20 +143,18 @@ class App:
         pyxel.run(self.update, self.draw)
 
     def reset(self):
-        words = list(load_words())
-        random.shuffle(words)
-        words.append("")  # 開始前は空にする
-        self.word_list = words
+        words = load_words()
+        lines = create_lines(words)
+        self.lines = lines
+        self.cur_word_pos = 0
         self.cur_pos = 0
         self.score = 0
         self.error = 0
-        self.words = 0
         self.start_time = time.time()
         self.time = 0
         self.started = False
 
     def start(self):
-        self.word_list.pop()  # 最初の文字列を表示
         self.started = True
 
     def finish(self):
@@ -75,7 +162,7 @@ class App:
 
     @property
     def cur_text(self):
-        return self.word_list[-1].lower()
+        return self.lines.get_word(self.cur_word_pos).lower()
 
     def update(self):
         if not self.started:
@@ -91,7 +178,7 @@ class App:
             # スタート後60秒以上経過している
             self.finish()
             return
-    
+
         self.time = time.time() - self.start_time
         ch = self.cur_text[self.cur_pos]
         for c in range(ord("a"), ord("z") + 1):
@@ -109,8 +196,7 @@ class App:
 
         if self.cur_pos == len(self.cur_text):
             # 入力完了
-            self.words += 1
-            self.word_list.pop()
+            self.cur_word_pos += 1
             self.cur_pos = 0
 
     @property
@@ -127,20 +213,30 @@ class App:
 
     def draw(self):
         pyxel.cls(1)
-        w = font.text_width(self.cur_text[: self.cur_pos])
-        before = self.cur_text[: self.cur_pos]
-        after = self.cur_text[self.cur_pos :]
-        if before:
-            draw_text_with_border(50, 50, before, 3, 0, font)
-        if after:
-            pyxel.text(50+w, 50, after, 11, font)
-
         pyxel.text(8, 8, f"TIME: {self.time: >4.1f} / 60", 7, font)
-        pyxel.text(8, 20, f"WORDS: {self.words: >2}", 7, font)
+        pyxel.text(8, 20, f"WORDS: {self.cur_word_pos: >2}", 7, font)
         pyxel.text(120, 8, f"TYPE: {self.score: >5}", 7, font)
         pyxel.text(120, 20, f"TPM: {self.tpm: >8.1f}", 7, font)
         pyxel.text(220, 8, f"ERROR: {self.error: >4}", 14, font)
         pyxel.text(220, 20, f"EPM: {self.epm: >8.1f}", 14, font)
+
+        word, line_num, pos = self.lines.get_state(self.cur_word_pos)
+
+        cur_pos = self.cur_pos + pos
+        for i, line in enumerate(self.lines):
+            text = " ".join(line)
+            y = 50 + i * 14
+            if i < line_num:
+                draw_text_with_border(LEFT_MARGIN, y, text, 3, 0, font)
+            if i == line_num:
+                before, after = text[:cur_pos], text[cur_pos:]
+                w = font.text_width(before)
+                if before:
+                    draw_text_with_border(LEFT_MARGIN, y, before, 3, 0, font)
+                if after:
+                    pyxel.text(LEFT_MARGIN + w, y, after, 3, font)
+            if i > line_num:
+                pyxel.text(LEFT_MARGIN, y, text, 3, font)
 
         if not self.started:
             if self.time >= 60:
@@ -155,6 +251,9 @@ class App:
             for i, line in enumerate(text.splitlines()):
                 # 行ごとにセンタリング
                 x = (pyxel.width - font.text_width(line)) // 2
-                draw_text_with_border(x, pyxel.height // 2 + i * 10, line, color, 0, font)
+                draw_text_with_border(
+                    x, pyxel.height // 2 + i * 10, line, color, 0, font
+                )
+
 
 App()
