@@ -23,6 +23,7 @@ TITLE = "Pyxel app 05-typing-filled"
 WIDTH = 320
 HEIGHT = 180
 CHAR_WIDTH = 6
+LINE_HEIGHT = 14
 LEFT_MARGIN = WIDTH // 10
 CHAR_PER_LINE = (WIDTH - LEFT_MARGIN * 2) // CHAR_WIDTH
 MAX_LINES = 8
@@ -39,84 +40,123 @@ def load_words():
 
 
 @dataclasses.dataclass
-class Line:
-    words: list[str] = dataclasses.field(default_factory=list)
-    chars_per_line: int = CHAR_PER_LINE
+class Word:
+    text: str
+    x: int = 0
+    y: int = 0
+    typed_pos: int = 0
 
-    def __getitem__(self, i):
-        return self.words[i]
+    def __post_init__(self):
+        self.text = self.text.lower()
 
-    def __len__(self):
-        return len(self.words)
+    def __len__(self) -> int:
+        return len(self.text) + 1  # 単語の文字数と区切りのスペース
 
-    def __iter__(self):
-        yield from self.words
+    def test_input(self) -> tuple[bool | None, bool]:
+        """入力文字が正しいか判定
 
-    def append(self, word):
-        self.words.append(word)
+        戻り値:
+        - (入力が正しいか, 入力が最後まで完了したか)
+        - 入力が正しいか: None: 未入力, False: タイプミス, True: 正解
+        - 入力が最後まで完了したか: True: 入力完了, False: 未入力あり
 
-    @property
-    def text(self):
-        return " ".join(self.words)
+        正しい場合:
+        - 位置を更新
+        - まだ未入力があるなら (True, False) を返す
+        - 最後まで一致していたら (True, True) を返す
 
-    def can_add(self, word):
-        return len(self.text) + len(word) <= self.chars_per_line
-
-    def is_full(self):
-        return len(self.text) >= self.chars_per_line
-
-
-class Lines:
-    def __init__(self):
-        self.lines = [Line() for _ in range(MAX_LINES)]
-        self.line_counts = [0] * 10
-
-    def __getitem__(self, i):
-        return self.lines[i]
-
-    def __len__(self):
-        """単語数"""
-        return sum(len(line) for line in self.lines)
-
-    def __iter__(self):
-        yield from self.lines
-
-    def is_full(self):
-        return all(line.is_full() for line in self.lines)
-
-    def append(self, word: str):
-        if self.is_full():
-            return
-        for line in self.lines:
-            if line.can_add(word):
-                line.append(word)
+        間違っている場合
+        - (False, False) を返す
+        """
+        ch = self.text[self.typed_pos]
+        correct: bool | None = None  # None: 未入力, False: タイプミス, True: 正解
+        for c in range(ord("a"), ord("z") + 1):
+            if ch == chr(c) and pyxel.btnp(c):
+                # 正解
+                correct = True
+                self.typed_pos += 1
                 break
-        self.line_counts = [len(line) for line in self.lines]
+            elif pyxel.btnp(c):
+                # タイプミス
+                correct = False
+                break
 
-    def get_word(self, pos: int):
-        for count, line in zip(self.line_counts, self.lines):
-            if pos < count:
-                return line[pos]
-            pos -= count
+        return (correct, self.typed_pos == len(self.text))
 
-    def get_state(self, pos: int):
-        """i番目の単語について、単語、i行目、n文字目を返す"""
-        for i, (count, line) in enumerate(zip(self.line_counts, self.lines)):
-            if pos < count:
-                return line[pos], i, len(" ".join(line[:pos]))
-            pos -= count
+    def draw(self, offset_x, offset_y):
+        """文字列を入力済みと未入力分とで表現を変えてx,y座標に描画する"""
+        before = self.text[: self.typed_pos]
+        after = self.text[self.typed_pos :]
+        x = self.x + offset_x
+        y = self.y + offset_y
+        if before:
+            draw_text_with_border(x, y, before, 3, 0, font)
+        if after:
+            pyxel.text(x + font.text_width(before), y, after, 3, font)
 
 
-def create_lines(words, chars_per_line=CHAR_PER_LINE):
-    """1行の文字数にできるだけ詰めて複数行の文字列のリストを作る"""
-    lines = Lines()
-    _total = len(words)
-    for _i, word in enumerate(words):
-        lines.append(word)
-        if lines.is_full():
-            break
-    print(f"Words: {_i}/{_total}")
-    return lines
+class WordSet:
+    word_pos: int
+    words: list[Word]
+    lines: list[list[Word]]
+
+    def __init__(self, words: list[str]):
+        self.word_pos = 0
+        self.lines = [[] for _ in range(MAX_LINES)]
+
+        # 単語リストから、文字数がいっぱいになるところまで選択する
+        _total = 0
+        for i, text in enumerate(words):
+            _total += len(text) + 1
+            if _total > CHAR_PER_LINE * MAX_LINES:
+                break
+
+        # 使用する単語を文字数の多い順に詰め込んでいく
+        stock_words = sorted(words[:i], key=len, reverse=True)
+        for text in stock_words:
+            if not self._append(text):
+                break
+
+        self._update_word_loc()
+        self.words = [word for line in self.lines for word in line]
+        print(f"Words: {len(self.words)}/{len(words)}")
+
+    def _append(self, text: str) -> bool:
+        word = Word(text)
+        size = len(word)  # 単語の文字数と区切りのスペース
+
+        # 文字列が少ない順に並べて、先頭行に詰め込む
+        self.lines.sort(key=lambda line: sum(len(w) for w in line))
+
+        # 先頭行に追加できるかチェック
+        col = sum(len(w) for w in self.lines[0])
+        if col + size > CHAR_PER_LINE:
+            return False
+
+        self.lines[0].append(word)
+        return True
+
+    def _update_word_loc(self):
+        """単語の位置を更新する"""
+        random.shuffle(self.lines)
+        for row, line in enumerate(self.lines):
+            random.shuffle(line)
+            col = 0
+            for word in line:
+                word.x = col * CHAR_WIDTH
+                word.y = row * LINE_HEIGHT
+                col += len(word)
+
+    def test_input(self) -> tuple[bool | None, bool]:
+        corr, comp = self.words[self.word_pos].test_input()
+        if comp:
+            self.word_pos += 1
+        return corr, comp
+
+    def draw(self, x, y):
+        for line in self.lines:
+            for word in line:
+                word.draw(x, y)
 
 
 def draw_text_with_border(x, y, s, col, bcol, font):
@@ -144,10 +184,7 @@ class App:
 
     def reset(self):
         words = load_words()
-        lines = create_lines(words)
-        self.lines = lines
-        self.cur_word_pos = 0
-        self.cur_pos = 0
+        self.wordset = WordSet(words)
         self.score = 0
         self.error = 0
         self.start_time = time.time()
@@ -159,10 +196,6 @@ class App:
 
     def finish(self):
         self.started = False
-
-    @property
-    def cur_text(self):
-        return self.lines.get_word(self.cur_word_pos).lower()
 
     def update(self):
         if not self.started:
@@ -180,24 +213,24 @@ class App:
             return
 
         self.time = time.time() - self.start_time
-        ch = self.cur_text[self.cur_pos]
-        for c in range(ord("a"), ord("z") + 1):
-            if ch == chr(c) and pyxel.btnp(c):
+
+        correct, complete = self.wordset.test_input()
+        match correct:
+            case True:
                 # 正解
                 pyxel.play(0, 0)
-                self.cur_pos += 1
                 self.score += 1
-                break
-            elif pyxel.btnp(c):
+            case False:
                 # タイプミス
                 pyxel.play(0, 1)
                 self.error += 1
-                break
+            case None:
+                # 未入力
+                pass
 
-        if self.cur_pos == len(self.cur_text):
+        if complete:
             # 入力完了
-            self.cur_word_pos += 1
-            self.cur_pos = 0
+            pass
 
     @property
     def tpm(self):
@@ -214,29 +247,13 @@ class App:
     def draw(self):
         pyxel.cls(1)
         pyxel.text(8, 8, f"TIME: {self.time: >4.1f} / 60", 7, font)
-        pyxel.text(8, 20, f"WORDS: {self.cur_word_pos: >2}", 7, font)
+        pyxel.text(8, 20, f"WORDS: {self.wordset.word_pos: >2}", 7, font)
         pyxel.text(120, 8, f"TYPE: {self.score: >5}", 7, font)
         pyxel.text(120, 20, f"TPM: {self.tpm: >8.1f}", 7, font)
         pyxel.text(220, 8, f"ERROR: {self.error: >4}", 14, font)
         pyxel.text(220, 20, f"EPM: {self.epm: >8.1f}", 14, font)
 
-        word, line_num, pos = self.lines.get_state(self.cur_word_pos)
-
-        cur_pos = self.cur_pos + pos
-        for i, line in enumerate(self.lines):
-            text = " ".join(line)
-            y = 50 + i * 14
-            if i < line_num:
-                draw_text_with_border(LEFT_MARGIN, y, text, 3, 0, font)
-            if i == line_num:
-                before, after = text[:cur_pos], text[cur_pos:]
-                w = font.text_width(before)
-                if before:
-                    draw_text_with_border(LEFT_MARGIN, y, before, 3, 0, font)
-                if after:
-                    pyxel.text(LEFT_MARGIN + w, y, after, 3, font)
-            if i > line_num:
-                pyxel.text(LEFT_MARGIN, y, text, 3, font)
+        self.wordset.draw(LEFT_MARGIN, 50)
 
         if not self.started:
             if self.time >= 60:
@@ -252,7 +269,7 @@ class App:
                 # 行ごとにセンタリング
                 x = (pyxel.width - font.text_width(line)) // 2
                 draw_text_with_border(
-                    x, pyxel.height // 2 + i * 10, line, color, 0, font
+                    x, pyxel.height // 2 + i * 14, line, color, 0, font
                 )
 
 
