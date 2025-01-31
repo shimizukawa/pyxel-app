@@ -14,6 +14,7 @@
 # ///
 
 import asyncio
+import time
 from pathlib import Path
 
 import pyxel
@@ -26,15 +27,16 @@ DEBUG = False
 
 LINE_NUMS = 12  # lines per page
 LINE_MARGIN_RATIO = 0.5  # フォント高さの50%
-DEFAULT_LINE_HEIGHT = int(14 * (1+LINE_MARGIN_RATIO))  # default font height 14
+DEFAULT_LINE_HEIGHT = int(14 * (1 + LINE_MARGIN_RATIO))  # default font height 14
 WINDOW_PADDING = DEFAULT_LINE_HEIGHT // 2
 HEIGHT = DEFAULT_LINE_HEIGHT * LINE_NUMS
 WIDTH = HEIGHT * 16 // 9  # 16:9
-SPEED = 1
+KEY_REPEAT = 1  # for 30fps
+KEY_HOLD = 15  # for 30fps
 
 # The Font class only supports BDF format fonts
 font_title = pyxel.Font("assets/b24.bdf")
-font_subtitle = pyxel.Font("assets/b16_b.bdf")
+font_pagetitle = pyxel.Font("assets/b16_b.bdf")
 font_default = pyxel.Font("assets/b14.bdf")
 font_bold = pyxel.Font("assets/b14_b.bdf")
 font_italic = pyxel.Font("assets/b14_i.bdf")
@@ -42,7 +44,7 @@ font_bolditalic = pyxel.Font("assets/b14_bi.bdf")
 font_literal = pyxel.Font("assets/b14.bdf")
 FONTS = {
     "title": font_title,
-    "subtitle": font_subtitle,
+    "pagetitle": font_pagetitle,
     "default": font_default,
     "strong": font_bold,
     "em": font_italic,
@@ -55,6 +57,8 @@ class App:
     def __init__(self):
         self.slides = self.load_slides(MD_FILENAME)
         self.page = 0
+        self.frame_times = [time.time()] * 30
+        self.fps = 0
         pyxel.init(WIDTH, HEIGHT, title=TITLE)
 
         # run forever
@@ -77,27 +81,46 @@ class App:
             slides.append(current_slide)
         return slides
 
+    def forward(self):
+        self.page = min((self.page + 1), len(self.slides) - 1)
+
+    def backward(self):
+        self.page = max((self.page - 1), 0)
+
     def update(self):
+        self.calc_fps()
+
         if pyxel.btnp(pyxel.KEY_Q):
             pyxel.quit()
 
-        if pyxel.btnp(pyxel.KEY_RIGHT):
-            # forward
-            self.page = min((self.page + 1), len(self.slides) - 1)
-        elif pyxel.btnp(pyxel.KEY_LEFT):
-            # backward
-            self.page = max((self.page - 1), 0)
-        elif pyxel.btnp(pyxel.KEY_SPACE):
+        key_hold = KEY_HOLD * self.fps // 30
+        key_repeat = KEY_REPEAT * self.fps // 30
+
+        if pyxel.btnp(pyxel.KEY_RIGHT, key_hold, key_repeat):
+            self.forward()
+        elif pyxel.btnp(pyxel.KEY_LEFT, key_hold, key_repeat):
+            self.backward()
+        elif pyxel.btnp(pyxel.KEY_SPACE, key_hold, key_repeat):
             if pyxel.btn(pyxel.KEY_SHIFT):
-                # backward
-                self.page = max((self.page - 1), 0)
+                self.backward()
             else:
-                # forward
-                self.page = min((self.page + 1), len(self.slides) - 1)
+                self.forward()
+
+    def calc_fps(self):
+        self.frame_times.append(time.time())
+        self.frame_times.pop(0)
+        # 10フレームごとにFPSを計算
+        if pyxel.frame_count % 10:
+            return
+        self.fps = int(
+            len(self.frame_times) / (self.frame_times[-1] - self.frame_times[0])
+        )
 
     def draw(self):
         pyxel.cls(7)
         self.draw_slide(self.slides[self.page])
+        # FPSを表示
+        pyxel.text(5, HEIGHT - 10, f"FPS: {self.fps}", 13)
 
     def draw_slide(self, tokens):
         visitor = Visitor(self)
@@ -138,7 +161,8 @@ class Visitor:
         self.color_stack = [(0, -1)]
         self.section_level = 0
         self.align = "left"
-        self.list_level = 0  # 箇条書きのマーク用
+        self.list_stack = []  # 箇条書きのマーク用
+        self.list_ordered_num = None  # 番号付き箇条書きの場合は1以上の数値
 
     @property
     def color(self):
@@ -158,7 +182,12 @@ class Visitor:
 
     @property
     def list_marker(self):
-        return LIST_MARKERS[self.list_level]  # 深いとエラーになるけど実質問題ない
+        list_level = len(self.list_stack)
+        list_type = self.list_stack[-1]
+        if list_type == "ordered":
+            return f"{self.list_ordered_num}. "
+        elif list_type == "bullet":
+            return LIST_MARKERS[list_level]  # 深いとエラーになるけど実質問題ない
 
     def _text(self, text):
         w = self.font.text_width(text)
@@ -232,7 +261,7 @@ class Visitor:
             self._crlf()
         elif token.tag == "h3":
             self.section_level = 3
-            self.font_stack.append("subtitle")
+            self.font_stack.append("pagetitle")
             self.align = "left"
             self._text("# ")
 
@@ -259,22 +288,32 @@ class Visitor:
 
     def visit_bullet_list_open(self, token):
         self._indent(WINDOW_PADDING)
-        self.y += self.font_height // 10
-        self.list_level += 1
+        self.list_stack.append("bullet")
 
     def visit_bullet_list_close(self, token):
-        self.y += self.font_height // 10
         self._dedent()
-        self.list_level -= 1
+        self.list_stack.pop()
+
+    def visit_ordered_list_open(self, token):
+        self._indent(WINDOW_PADDING)
+        self.list_stack.append("ordered")
+        self.list_ordered_num = 1
+
+    def visit_ordered_list_close(self, token):
+        self._dedent()
+        self.list_stack.pop()
+        self.list_ordered_num = None
 
     def visit_list_item_open(self, token):
         x = self.x
         self._text(self.list_marker)  # 本当はここでマイナスインデントするのが良いかも？
         self.x = x  # 元の位置に戻す
-        self._indent(self.font_height)
+        self._indent(max(self.font_height, self.font.text_width(self.list_marker)))
 
     def visit_list_item_close(self, token):
         self._dedent()
+        if self.list_ordered_num:
+            self.list_ordered_num += 1
 
     def visit_paragraph_open(self, token):
         pass
