@@ -24,8 +24,10 @@ MD_FILENAME = "slide.md"
 # DEBUG = True
 DEBUG = False
 
-DEFAULT_LINE_HEIGHT = 18  # default font height 14 * 133%
-LINE_NUMS = 14  # lines per page
+LINE_NUMS = 12  # lines per page
+LINE_MARGIN_RATIO = 0.5  # フォント高さの50%
+DEFAULT_LINE_HEIGHT = int(14 * (1+LINE_MARGIN_RATIO))  # default font height 14
+WINDOW_PADDING = DEFAULT_LINE_HEIGHT // 2
 HEIGHT = DEFAULT_LINE_HEIGHT * LINE_NUMS
 WIDTH = HEIGHT * 16 // 9  # 16:9
 SPEED = 1
@@ -129,8 +131,8 @@ def use_color(fg: int, bg: int):
 class Visitor:
     def __init__(self, app):
         self.app = app
-        self.x = DEFAULT_LINE_HEIGHT // 2  # 初期padding
-        self.y = DEFAULT_LINE_HEIGHT // 2  # 初期padding
+        self.x = WINDOW_PADDING  # 初期padding
+        self.y = WINDOW_PADDING  # 初期padding
         self.indent_stack = [self.x]
         self.font_stack = ["default"]
         self.color_stack = [(0, -1)]
@@ -184,8 +186,8 @@ class Visitor:
         # line feed
         self.y += self.font_height
         if margin:
-            # 文字高さの33%分のマージンを追加
-            self.y += self.font_height // 3
+            # 文字高さの50%分のマージンを追加
+            self.y += int(self.font_height * LINE_MARGIN_RATIO)
 
     def _indent(self, indent):
         self.x += indent
@@ -241,7 +243,7 @@ class Visitor:
 
     def visit_text(self, token):
         content = token.content
-        max_width = (WIDTH - DEFAULT_LINE_HEIGHT // 2) - self.x
+        max_width = (WIDTH - WINDOW_PADDING) - self.x
         if DEBUG:
             pyxel.rectb(self.x, self.y, max_width, self.font_height, 2)
         while content:
@@ -256,7 +258,7 @@ class Visitor:
                 self._crlf()
 
     def visit_bullet_list_open(self, token):
-        self._indent(DEFAULT_LINE_HEIGHT // 2)
+        self._indent(WINDOW_PADDING)
         self.y += self.font_height // 10
         self.list_level += 1
 
@@ -312,8 +314,8 @@ class Visitor:
         h = DEFAULT_LINE_HEIGHT + len(hls) * DEFAULT_LINE_HEIGHT
         pyxel.rect(self.x, self.y, w, h, 0)
 
-        self._indent(DEFAULT_LINE_HEIGHT // 2)
-        self.y += DEFAULT_LINE_HEIGHT // 2
+        self._indent(WINDOW_PADDING)
+        self.y += WINDOW_PADDING
         for line in token.content.splitlines():
             self._text(line)
             self._crlf()
@@ -321,6 +323,12 @@ class Visitor:
 
     def visit_hardbreak(self, token):
         self._crlf()
+
+    def visit_softbreak(self, token):
+        self._crlf()
+
+    def visit_html_block(self, token):
+        pass
 
 
 # micropipがasync/awaitを要求するため
