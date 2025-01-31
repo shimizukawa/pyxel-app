@@ -21,10 +21,12 @@ import pyxel
 
 TITLE = "Pyxel app 03-slide"
 MD_FILENAME = "slide.md"
+# DEBUG = True
+DEBUG = False
 
-LINE_HEIGHT = 16  # default font height
+DEFAULT_LINE_HEIGHT = 16  # default font height + 2
 LINE_NUMS = 15  # lines per page
-HEIGHT = LINE_HEIGHT * LINE_NUMS
+HEIGHT = DEFAULT_LINE_HEIGHT * LINE_NUMS
 WIDTH = HEIGHT * 16 // 9  # 16:9
 SPEED = 1
 
@@ -126,8 +128,8 @@ def use_color(fg: int, bg: int):
 class Visitor:
     def __init__(self, app):
         self.app = app
-        self.x = LINE_HEIGHT // 2  # 初期padding
-        self.y = LINE_HEIGHT // 2  # 初期padding
+        self.x = DEFAULT_LINE_HEIGHT // 2  # 初期padding
+        self.y = DEFAULT_LINE_HEIGHT // 2  # 初期padding
         self.indent_stack = [self.x]
         self.font_stack = ["default"]
         self.color_stack = [(0, -1)]
@@ -147,8 +149,8 @@ class Visitor:
         return FONTS[self.font_stack[-1]]
 
     @property
-    def line_height(self):
-        return self.font.text_width("あ")  # あの幅を行の高さとする
+    def font_height(self):
+        return self.font.text_width("あ")  # あの幅を文字の高さとする
 
     def _text(self, text):
         w = self.font.text_width(text)
@@ -160,18 +162,24 @@ class Visitor:
 
         # 背景色
         if self.bgcolor >= 0:
-            pyxel.rect(self.x, self.y, w, self.line_height, self.bgcolor)
+            pyxel.rect(self.x, self.y, w, self.font_height, self.bgcolor)
+
+        if DEBUG:
+            pyxel.rectb(self.x, self.y, w, self.font_height, 0)
 
         pyxel.text(self.x, self.y, text, self.color, self.font)
 
-        # centerやrightの場合は連続で _text が呼ばれると位置がずれる
+        # バグ: centerやrightの場合は連続で _text が呼ばれると位置がずれる
         self.x += w
 
-    def _crlf(self):
+    def _crlf(self, margin: bool = False):
         # carriage return
         self.x = self.indent_stack[-1]
         # line feed
-        self.y += self.line_height
+        self.y += self.font_height
+        if margin:
+            # 文字高さの33%分のマージンを追加
+            self.y += self.font_height // 3
 
     def _indent(self, indent):
         self.x += indent
@@ -227,39 +235,43 @@ class Visitor:
 
     def visit_text(self, token):
         content = token.content
-        # 横幅の8割をはみ出る場合は、複数行に分けて表示
-        max_width = (WIDTH * 8 // 10) - self.x
+        max_width = (WIDTH - DEFAULT_LINE_HEIGHT // 2) - self.x
+        if DEBUG:
+            pyxel.rectb(self.x, self.y, max_width, self.font_height, 2)
         while content:
+            i = len(content)
             w = self.font.text_width(content)
-            if w > max_width:
-                i = max_width // self.font.text_width("あ")
-                self._text(content[:i])
+            while w > max_width:
+                i -= 1
+                w = self.font.text_width(content[:i])
+            self._text(content[:i])
+            content = content[i:]
+            if content:
                 self._crlf()
-                content = content[i:]
-            else:
-                self._text(content)
-                break
 
     def visit_bullet_list_open(self, token):
-        self._indent(LINE_HEIGHT // 2)
-        self.y += self.line_height // 10
+        self._indent(DEFAULT_LINE_HEIGHT // 2)
+        self.y += self.font_height // 10
 
     def visit_bullet_list_close(self, token):
-        self.y += self.line_height // 10
+        self.y += self.font_height // 10
         self._dedent()
 
     def visit_list_item_open(self, token):
+        x = self.x
         self._text("・")
+        w = self.x - x  # "・" の幅
+        self.x -= w  # "・" の分を戻す
+        self._indent(w)  # "・" の分だけインデント
 
     def visit_list_item_close(self, token):
-        pass
+        self._dedent()
 
     def visit_paragraph_open(self, token):
         pass
 
     def visit_paragraph_close(self, token):
-        self.y += self.line_height // 10 * 2
-        self._crlf()
+        self._crlf(margin=True)
 
     def visit_em_open(self, token):
         self.color_stack.append((3, -1))
@@ -289,12 +301,12 @@ class Visitor:
     @use_color(7, -1)
     def visit_fence(self, token):
         hls = [self.font.text_width(line) for line in token.content.splitlines()]
-        w = LINE_HEIGHT + max(hls)
-        h = LINE_HEIGHT + len(hls) * LINE_HEIGHT
+        w = DEFAULT_LINE_HEIGHT + max(hls)
+        h = DEFAULT_LINE_HEIGHT + len(hls) * DEFAULT_LINE_HEIGHT
         pyxel.rect(self.x, self.y, w, h, 0)
 
-        self._indent(LINE_HEIGHT // 2)
-        self.y += LINE_HEIGHT // 2
+        self._indent(DEFAULT_LINE_HEIGHT // 2)
+        self.y += DEFAULT_LINE_HEIGHT // 2
         for line in token.content.splitlines():
             self._text(line)
             self._crlf()
