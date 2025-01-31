@@ -24,8 +24,8 @@ MD_FILENAME = "slide.md"
 # DEBUG = True
 DEBUG = False
 
-DEFAULT_LINE_HEIGHT = 16  # default font height + 2
-LINE_NUMS = 15  # lines per page
+DEFAULT_LINE_HEIGHT = 18  # default font height 14 * 133%
+LINE_NUMS = 14  # lines per page
 HEIGHT = DEFAULT_LINE_HEIGHT * LINE_NUMS
 WIDTH = HEIGHT * 16 // 9  # 16:9
 SPEED = 1
@@ -46,6 +46,7 @@ FONTS = {
     "em": font_italic,
     "literal": font_literal,
 }
+LIST_MARKERS = ["使用しない", "●", "○", "■", "▲", "▼", "★"]
 
 
 class App:
@@ -135,6 +136,7 @@ class Visitor:
         self.color_stack = [(0, -1)]
         self.section_level = 0
         self.align = "left"
+        self.list_level = 0  # 箇条書きのマーク用
 
     @property
     def color(self):
@@ -151,6 +153,10 @@ class Visitor:
     @property
     def font_height(self):
         return self.font.text_width("あ")  # あの幅を文字の高さとする
+
+    @property
+    def list_marker(self):
+        return LIST_MARKERS[self.list_level]  # 深いとエラーになるけど実質問題ない
 
     def _text(self, text):
         w = self.font.text_width(text)
@@ -252,17 +258,18 @@ class Visitor:
     def visit_bullet_list_open(self, token):
         self._indent(DEFAULT_LINE_HEIGHT // 2)
         self.y += self.font_height // 10
+        self.list_level += 1
 
     def visit_bullet_list_close(self, token):
         self.y += self.font_height // 10
         self._dedent()
+        self.list_level -= 1
 
     def visit_list_item_open(self, token):
         x = self.x
-        self._text("・")
-        w = self.x - x  # "・" の幅
-        self.x -= w  # "・" の分を戻す
-        self._indent(w)  # "・" の分だけインデント
+        self._text(self.list_marker)  # 本当はここでマイナスインデントするのが良いかも？
+        self.x = x  # 元の位置に戻す
+        self._indent(self.font_height)
 
     def visit_list_item_close(self, token):
         self._dedent()
