@@ -14,6 +14,7 @@
 # ///
 
 import asyncio
+import dataclasses
 import time
 from pathlib import Path
 
@@ -52,6 +53,19 @@ FONTS = {
 }
 LIST_MARKERS = ["使用しない", "●", "○", "■", "▲", "▼", "★"]
 
+DIRECTION_MAP = {
+    ("f", "h2"): "right",
+    ("f", "h3"): "down",
+    ("b", "h3"): "up",
+    ("b", "h2"): "left",
+}
+
+
+@dataclasses.dataclass
+class Slide:
+    tokens: list
+    level: str
+
 
 class App:
     def __init__(self):
@@ -60,43 +74,54 @@ class App:
         self.frame_times = [time.time()] * 30
         self.fps = 0
         self.renderd_page_nums = [None, None, None]
-        self.in_transition = [0, 0, 0]  # (rate(1..0), old_page, direction)
-        pyxel.init(WIDTH + WINDOW_PADDING*2, HEIGHT + WINDOW_PADDING, title=TITLE)
+        self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
+        pyxel.init(WIDTH + WINDOW_PADDING * 2, HEIGHT + WINDOW_PADDING, title=TITLE)
         pyxel.mouse(True)
         self.render_page(0)
 
         # run forever
         pyxel.run(self.update, self.draw)
 
-    def load_slides(self, filepath):
-        from markdown_it import MarkdownIt
+    def load_slides(self, filepath) -> list[Slide]:
+        import markdown_it
 
-        md = MarkdownIt()
+        md = markdown_it.MarkdownIt()
         content = Path(filepath).read_text(encoding="utf-8")
         tokens = md.parse(content)
-        slides = []
-        current_slide = []
+        slides: list[Slide] = []
+        slide_tokens: list[markdown_it.token.Token] = []
         for token in tokens:
             if token.type == "heading_open" and token.tag in ["h1", "h2", "h3"]:
-                current_slide = []
-                slides.append(current_slide)
-            current_slide.append(token)
-        if current_slide:
-            slides.append(current_slide)
+                if slide_tokens:
+                    slides.append(Slide(slide_tokens, slide_tokens[0].tag))
+                    slide_tokens = []
+            slide_tokens.append(token)
+        if slide_tokens:
+            slides.append(Slide(slide_tokens, slide_tokens[0].tag))
         return slides
 
     @property
     def page(self):
         return self._page
+
     @page.setter
     def page(self, new_page):
         old_page, self._page = self._page, new_page
-        if old_page < new_page:
+        if old_page != new_page:
             self.render_page(new_page)
-            self.in_transition = [1.0, old_page, 0]
-        if old_page > new_page:
-            self.render_page(new_page)
-            self.in_transition = [1.0, old_page, 1]
+
+        if old_page < new_page:  # forward
+            self.in_transition = [
+                1.0,
+                old_page,
+                DIRECTION_MAP["f", self.slides[new_page].level],
+            ]
+        if old_page > new_page:  # backward
+            self.in_transition = [
+                1.0,
+                old_page,
+                DIRECTION_MAP["b", self.slides[old_page].level],
+            ]
 
     def forward(self):
         self.page = min((self.page + 1), len(self.slides) - 1)
@@ -111,11 +136,10 @@ class App:
             return
         if self.renderd_page_nums[p % 2] == p:
             return
-        tokens = self.slides[p]
         img = self.get_image_bank(p)
         img.rect(0, 0, WIDTH, HEIGHT, 7)
         visitor = Visitor(self, img)
-        visitor.walk(tokens)
+        visitor.walk(self.slides[p].tokens)
         self.renderd_page_nums[p % 2] = p
 
     def update(self):
@@ -169,16 +193,26 @@ class App:
         if self.in_transition[0] > 0:
             rate, old_page, direction = self.in_transition
             old_img = self.get_rendered_img(old_page)
-            if direction == 0:
+            if direction == "down":
                 old_x = WINDOW_PADDING
                 old_y = WINDOW_PADDING - HEIGHT * (1 - rate)
                 new_x = WINDOW_PADDING
                 new_y = WINDOW_PADDING + HEIGHT * rate
-            elif direction == 1:
+            elif direction == "up":
                 old_x = WINDOW_PADDING
                 old_y = WINDOW_PADDING + HEIGHT * (1 - rate)
                 new_x = WINDOW_PADDING
                 new_y = WINDOW_PADDING - HEIGHT * rate
+            elif direction == "right":
+                old_x = WINDOW_PADDING - WIDTH * (1 - rate)
+                old_y = WINDOW_PADDING
+                new_x = WINDOW_PADDING + WIDTH * rate
+                new_y = WINDOW_PADDING
+            elif direction == "left":
+                old_x = WINDOW_PADDING + WIDTH * (1 - rate)
+                old_y = WINDOW_PADDING
+                new_x = WINDOW_PADDING - WIDTH * rate
+                new_y = WINDOW_PADDING
             pyxel.dither(rate)
             pyxel.blt(old_x, old_y, old_img, 0, 0, WIDTH, HEIGHT)
             pyxel.dither(1 - rate)
