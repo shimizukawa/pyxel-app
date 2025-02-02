@@ -56,10 +56,11 @@ LIST_MARKERS = ["使用しない", "●", "○", "■", "▲", "▼", "★"]
 class App:
     def __init__(self):
         self.slides = self.load_slides(MD_FILENAME)
-        self.page = 0
+        self._page = 0
         self.frame_times = [time.time()] * 30
         self.fps = 0
         self.renderd_page_nums = [None, None, None]
+        self.in_transition = [0, 0, 0]  # (rate(1..0), old_page, direction)
         pyxel.init(WIDTH + WINDOW_PADDING*2, HEIGHT + WINDOW_PADDING, title=TITLE)
         pyxel.mouse(True)
         self.render_page(1)
@@ -84,13 +85,24 @@ class App:
             slides.append(current_slide)
         return slides
 
+    @property
+    def page(self):
+        return self._page
+    @page.setter
+    def page(self, new_page):
+        old_page, self._page = self._page, new_page
+        if old_page < new_page:
+            self.render_page(new_page)
+            self.in_transition = [1.0, old_page, 0]
+        if old_page > new_page:
+            self.render_page(new_page)
+            self.in_transition = [1.0, old_page, 1]
+
     def forward(self):
         self.page = min((self.page + 1), len(self.slides) - 1)
-        self.render_page(self.page)
 
     def backward(self):
         self.page = max((self.page - 1), 0)
-        self.render_page(self.page)
 
     def render_page(self, page_num: int):
         """render page (page_num) to image bank
@@ -110,7 +122,7 @@ class App:
                 continue
             tokens = self.slides[p]
             img = pyxel.images[p % 3]
-            img.rect(0, 0, img.width, img.height, 7)
+            img.rect(0, 0, WIDTH, HEIGHT, 7)
             visitor = Visitor(self, img)
             visitor.walk(tokens)
             self.renderd_page_nums[p % 3] = p
@@ -123,6 +135,9 @@ class App:
 
         key_hold = KEY_HOLD * self.fps // 30
         key_repeat = KEY_REPEAT * self.fps // 30
+
+        if self.in_transition[0] > 0:
+            self.in_transition[0] = self.in_transition[0] - 3 / self.fps
 
         if pyxel.btnp(pyxel.KEY_RIGHT, key_hold, key_repeat):
             self.forward()
@@ -152,7 +167,23 @@ class App:
 
     def blt_slide(self):
         img = pyxel.images[self.page % 3]
-        pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, max(img.width, WIDTH), max(img.height, HEIGHT))
+        if self.in_transition[0] > 0:
+            rate, old_page, direction = self.in_transition
+            old_img = pyxel.images[old_page % 3]
+            if direction == 0:
+                old_x = WINDOW_PADDING
+                old_y = WINDOW_PADDING - HEIGHT * (1 - rate)
+                new_x = WINDOW_PADDING
+                new_y = WINDOW_PADDING + HEIGHT * rate
+            elif direction == 1:
+                old_x = WINDOW_PADDING
+                old_y = WINDOW_PADDING + HEIGHT * (1 - rate)
+                new_x = WINDOW_PADDING
+                new_y = WINDOW_PADDING - HEIGHT * rate
+            pyxel.blt(old_x, old_y, old_img, 0, 0, WIDTH, HEIGHT)
+            pyxel.blt(new_x, new_y, img, 0, 0, WIDTH, HEIGHT)
+        else:
+            pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, WIDTH, HEIGHT)
 
 
 def use_font(font: str):
