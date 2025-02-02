@@ -179,8 +179,11 @@ class App:
                 old_y = WINDOW_PADDING + HEIGHT * (1 - rate)
                 new_x = WINDOW_PADDING
                 new_y = WINDOW_PADDING - HEIGHT * rate
+            pyxel.dither(rate)
             pyxel.blt(old_x, old_y, old_img, 0, 0, WIDTH, HEIGHT)
+            pyxel.dither(1 - rate)
             pyxel.blt(new_x, new_y, img, 0, 0, WIDTH, HEIGHT)
+            pyxel.dither(1)
         else:
             pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, WIDTH, HEIGHT)
 
