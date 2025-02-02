@@ -63,19 +63,22 @@ DIRECTION_MAP = {
 
 @dataclasses.dataclass
 class Slide:
+    sec: int
+    page: int
     tokens: list
     level: str
 
 
 class App:
     def __init__(self):
+        self.first_pages_in_section = []  # セクションの開始ページ
         self.slides = self.load_slides(MD_FILENAME)
         self._page = 0
         self.frame_times = [time.time()] * 30
         self.fps = 0
-        self.renderd_page_nums = [None, None, None]
         self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
         pyxel.init(WIDTH + WINDOW_PADDING * 2, HEIGHT + WINDOW_PADDING, title=TITLE)
+        self.renderd_page_bank = [(None, pyxel.images[0]), (None, pyxel.images[1])]
         pyxel.mouse(True)
         self.render_page(0)
 
@@ -90,14 +93,22 @@ class App:
         tokens = md.parse(content)
         slides: list[Slide] = []
         slide_tokens: list[markdown_it.token.Token] = []
+        sec = 0
+        page = 0
         for token in tokens:
             if token.type == "heading_open" and token.tag in ["h1", "h2", "h3"]:
                 if slide_tokens:
-                    slides.append(Slide(slide_tokens, slide_tokens[0].tag))
+                    slides.append(Slide(sec, page, slide_tokens, slide_tokens[0].tag))
+                    page += 1
+                    sec = sec + 1 if token.tag in ("h1", "h2") else sec
                     slide_tokens = []
             slide_tokens.append(token)
         if slide_tokens:
-            slides.append(Slide(slide_tokens, slide_tokens[0].tag))
+            slides.append(Slide(sec, page, slide_tokens, slide_tokens[0].tag))
+
+        for i, slide in enumerate(slides):
+            if slide.level in ("h1", "h2"):
+                self.first_pages_in_section.append(i)
         return slides
 
     @property
@@ -123,24 +134,27 @@ class App:
                 DIRECTION_MAP["b", self.slides[old_page].level],
             ]
 
-    def forward(self):
+    def go_forward(self):
         self.page = min((self.page + 1), len(self.slides) - 1)
 
-    def backward(self):
+    def go_backward(self):
         self.page = max((self.page - 1), 0)
 
-    def render_page(self, page_num: int):
-        """render page (page_num) to image bank"""
-        p = page_num
-        if p >= len(self.slides):
-            return
-        if self.renderd_page_nums[p % 2] == p:
-            return
-        img = self.get_image_bank(p)
-        img.rect(0, 0, WIDTH, HEIGHT, 7)
-        visitor = Visitor(self, img)
-        visitor.walk(self.slides[p].tokens)
-        self.renderd_page_nums[p % 2] = p
+    def go_next_page(self):
+        if self.page + 1 not in self.first_pages_in_section and self.page != len(self.slides) - 1:
+            self.page += 1
+
+    def go_prev_page(self):
+        if self.page not in self.first_pages_in_section:
+            self.page -= 1
+
+    def go_next_section(self):
+        sec = min(self.slides[self.page].sec + 1, len(self.first_pages_in_section) - 1)
+        self.page = self.first_pages_in_section[sec]
+
+    def go_prev_section(self):
+        sec = max(self.slides[self.page].sec - 1, 0)
+        self.page = self.first_pages_in_section[sec]
 
     def update(self):
         self.calc_fps()
@@ -154,15 +168,19 @@ class App:
         if self.in_transition[0] > 0:
             self.in_transition[0] = self.in_transition[0] - 3 / self.fps
 
-        if pyxel.btnp(pyxel.KEY_RIGHT, key_hold, key_repeat):
-            self.forward()
+        if pyxel.btnp(pyxel.KEY_DOWN, key_hold, key_repeat):
+            self.go_next_page()
+        elif pyxel.btnp(pyxel.KEY_UP, key_hold, key_repeat):
+            self.go_prev_page()
+        elif pyxel.btnp(pyxel.KEY_RIGHT, key_hold, key_repeat):
+            self.go_next_section()
         elif pyxel.btnp(pyxel.KEY_LEFT, key_hold, key_repeat):
-            self.backward()
+            self.go_prev_section()
         elif pyxel.btnp(pyxel.KEY_SPACE, key_hold, key_repeat):
             if pyxel.btn(pyxel.KEY_SHIFT):
-                self.backward()
+                self.go_backward()
             else:
-                self.forward()
+                self.go_forward()
 
     def calc_fps(self):
         self.frame_times.append(time.time())
@@ -177,22 +195,38 @@ class App:
     def draw(self):
         pyxel.cls(7)
         self.blt_slide()
+        # Navigation
+        self.draw_nav()
         # FPSを表示
         pyxel.text(5, pyxel.height - 10, f"FPS: {self.fps}", 13)
 
-    def get_image_bank(self, page_num):
-        return pyxel.images[page_num % 2]
+    def render_page(self, page_num: int) -> pyxel.Image:
+        """render page (page_num) to old image bank"""
+        if page_num >= len(self.slides):
+            return
+        for (p, img) in self.renderd_page_bank:
+            if p == page_num:
+                return img
 
-    def get_rendered_img(self, page_num):
-        if self.renderd_page_nums[page_num % 2] != page_num:
-            self.render_page(page_num)
-        return self.get_image_bank(page_num)
+        _, img = self.renderd_page_bank.pop(0)
+        img.rect(0, 0, WIDTH, HEIGHT, 7)
+        visitor = Visitor(self, img)
+        visitor.walk(self.slides[page_num].tokens)
+        self.renderd_page_bank.append((page_num, img))
+        return img
+
+    def get_rendered_img(self, page: int):
+        for i, (p, img) in enumerate(self.renderd_page_bank):
+            if p == page:
+                used = self.renderd_page_bank.pop(i)
+                self.renderd_page_bank.append(used)
+                return img
+        else:
+            return self.render_page(page)
 
     def blt_slide(self):
-        img = self.get_rendered_img(self.page)
         if self.in_transition[0] > 0:
             rate, old_page, direction = self.in_transition
-            old_img = self.get_rendered_img(old_page)
             if direction == "down":
                 old_x = WINDOW_PADDING
                 old_y = WINDOW_PADDING - HEIGHT * (1 - rate)
@@ -213,13 +247,34 @@ class App:
                 old_y = WINDOW_PADDING
                 new_x = WINDOW_PADDING - WIDTH * rate
                 new_y = WINDOW_PADDING
+            new_img = self.get_rendered_img(self.page)
+            old_img = self.get_rendered_img(old_page)
             pyxel.dither(rate)
             pyxel.blt(old_x, old_y, old_img, 0, 0, WIDTH, HEIGHT)
             pyxel.dither(1 - rate)
-            pyxel.blt(new_x, new_y, img, 0, 0, WIDTH, HEIGHT)
+            pyxel.blt(new_x, new_y, new_img, 0, 0, WIDTH, HEIGHT)
             pyxel.dither(1)
         else:
+            img = self.get_rendered_img(self.page)
             pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, WIDTH, HEIGHT)
+
+    def draw_nav(self):
+        if self.page + 1 not in self.first_pages_in_section and self.page != len(self.slides) - 1:
+            # セクション内の最後のページではない
+            pyxel.line(pyxel.width - 20, pyxel.height - 10, pyxel.width - 15, pyxel.height - 15, 5)
+            pyxel.line(pyxel.width - 20, pyxel.height - 10, pyxel.width - 25, pyxel.height - 15, 5)
+        if self.page < self.first_pages_in_section[-1]:
+            # 最後のセクションではない
+            pyxel.line(pyxel.width - 5, pyxel.height - 25, pyxel.width - 10, pyxel.height - 20, 5)
+            pyxel.line(pyxel.width - 5, pyxel.height - 25, pyxel.width - 10, pyxel.height - 30, 5)
+        if self.page not in self.first_pages_in_section:
+            # セクション内の最初のページではない
+            pyxel.line(pyxel.width - 20, pyxel.height - 40, pyxel.width - 15, pyxel.height - 35, 6)
+            pyxel.line(pyxel.width - 20, pyxel.height - 40, pyxel.width - 25, pyxel.height - 35, 6)
+        if self.page != 0:
+            # 最初のセクションではない
+            pyxel.line(pyxel.width - 35, pyxel.height - 25, pyxel.width - 30, pyxel.height - 20, 6)
+            pyxel.line(pyxel.width - 35, pyxel.height - 25, pyxel.width - 30, pyxel.height - 30, 6)
 
 
 def use_font(font: str):
