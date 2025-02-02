@@ -63,7 +63,7 @@ class App:
         self.in_transition = [0, 0, 0]  # (rate(1..0), old_page, direction)
         pyxel.init(WIDTH + WINDOW_PADDING*2, HEIGHT + WINDOW_PADDING, title=TITLE)
         pyxel.mouse(True)
-        self.render_page(1)
+        self.render_page(0)
 
         # run forever
         pyxel.run(self.update, self.draw)
@@ -105,27 +105,18 @@ class App:
         self.page = max((self.page - 1), 0)
 
     def render_page(self, page_num: int):
-        """render page (page_num) to image bank
-        
-        0: images[0]
-        1: images[1]
-        2: images[2]
-        3: images[0]
-        ...
-        p: images[p % 3]
-        """
-        for i in [-1, 0, 1]:
-            p = page_num + i
-            if p < 0 or p >= len(self.slides):
-                continue
-            if self.renderd_page_nums[p % 3] == p:
-                continue
-            tokens = self.slides[p]
-            img = pyxel.images[p % 3]
-            img.rect(0, 0, WIDTH, HEIGHT, 7)
-            visitor = Visitor(self, img)
-            visitor.walk(tokens)
-            self.renderd_page_nums[p % 3] = p
+        """render page (page_num) to image bank"""
+        p = page_num
+        if p >= len(self.slides):
+            return
+        if self.renderd_page_nums[p % 2] == p:
+            return
+        tokens = self.slides[p]
+        img = self.get_image_bank(p)
+        img.rect(0, 0, WIDTH, HEIGHT, 7)
+        visitor = Visitor(self, img)
+        visitor.walk(tokens)
+        self.renderd_page_nums[p % 2] = p
 
     def update(self):
         self.calc_fps()
@@ -165,11 +156,19 @@ class App:
         # FPSを表示
         pyxel.text(5, pyxel.height - 10, f"FPS: {self.fps}", 13)
 
+    def get_image_bank(self, page_num):
+        return pyxel.images[page_num % 2]
+
+    def get_rendered_img(self, page_num):
+        if self.renderd_page_nums[page_num % 2] != page_num:
+            self.render_page(page_num)
+        return self.get_image_bank(page_num)
+
     def blt_slide(self):
-        img = pyxel.images[self.page % 3]
+        img = self.get_rendered_img(self.page)
         if self.in_transition[0] > 0:
             rate, old_page, direction = self.in_transition
-            old_img = pyxel.images[old_page % 3]
+            old_img = self.get_rendered_img(old_page)
             if direction == 0:
                 old_x = WINDOW_PADDING
                 old_y = WINDOW_PADDING - HEIGHT * (1 - rate)
