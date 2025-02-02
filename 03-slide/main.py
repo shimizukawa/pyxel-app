@@ -26,22 +26,22 @@ MD_FILENAME = "slide.md"
 DEBUG = False
 
 LINE_NUMS = 12  # lines per page
-LINE_MARGIN_RATIO = 0.5  # フォント高さの50%
-DEFAULT_LINE_HEIGHT = int(14 * (1 + LINE_MARGIN_RATIO))  # default font height 14
+LINE_MARGIN_RATIO = 0.3  # フォント高さの50%
+DEFAULT_LINE_HEIGHT = int(12 * (1 + LINE_MARGIN_RATIO))  # default font height 12
 WINDOW_PADDING = DEFAULT_LINE_HEIGHT // 2
 HEIGHT = DEFAULT_LINE_HEIGHT * LINE_NUMS
-WIDTH = HEIGHT * 16 // 9  # 16:9
+WIDTH = HEIGHT * 4 // 3
 KEY_REPEAT = 1  # for 30fps
 KEY_HOLD = 15  # for 30fps
 
 # The Font class only supports BDF format fonts
-font_title = pyxel.Font("assets/b24.bdf")
+font_title = pyxel.Font("assets/b16.bdf")
 font_pagetitle = pyxel.Font("assets/b16_b.bdf")
-font_default = pyxel.Font("assets/b14.bdf")
-font_bold = pyxel.Font("assets/b14_b.bdf")
-font_italic = pyxel.Font("assets/b14_i.bdf")
-font_bolditalic = pyxel.Font("assets/b14_bi.bdf")
-font_literal = pyxel.Font("assets/b14.bdf")
+font_default = pyxel.Font("assets/b12.bdf")
+font_bold = pyxel.Font("assets/b12_b.bdf")
+font_italic = pyxel.Font("assets/b12_i.bdf")
+font_bolditalic = pyxel.Font("assets/b12_bi.bdf")
+font_literal = pyxel.Font("assets/b12.bdf")
 FONTS = {
     "title": font_title,
     "pagetitle": font_pagetitle,
@@ -59,7 +59,10 @@ class App:
         self.page = 0
         self.frame_times = [time.time()] * 30
         self.fps = 0
-        pyxel.init(WIDTH, HEIGHT, title=TITLE)
+        self.renderd_page_nums = [None, None, None]
+        pyxel.init(WIDTH + WINDOW_PADDING*2, HEIGHT + WINDOW_PADDING, title=TITLE)
+        pyxel.mouse(True)
+        self.render_page(1)
 
         # run forever
         pyxel.run(self.update, self.draw)
@@ -83,9 +86,34 @@ class App:
 
     def forward(self):
         self.page = min((self.page + 1), len(self.slides) - 1)
+        self.render_page(self.page)
 
     def backward(self):
         self.page = max((self.page - 1), 0)
+        self.render_page(self.page)
+
+    def render_page(self, page_num: int):
+        """render page (page_num) to image bank
+        
+        0: images[0]
+        1: images[1]
+        2: images[2]
+        3: images[0]
+        ...
+        p: images[p % 3]
+        """
+        for i in [-1, 0, 1]:
+            p = page_num + i
+            if p < 0 or p >= len(self.slides):
+                continue
+            if self.renderd_page_nums[p % 3] == p:
+                continue
+            tokens = self.slides[p]
+            img = pyxel.images[p % 3]
+            img.rect(0, 0, img.width, img.height, 7)
+            visitor = Visitor(self, img)
+            visitor.walk(tokens)
+            self.renderd_page_nums[p % 3] = p
 
     def update(self):
         self.calc_fps()
@@ -118,13 +146,13 @@ class App:
 
     def draw(self):
         pyxel.cls(7)
-        self.draw_slide(self.slides[self.page])
+        self.blt_slide()
         # FPSを表示
-        pyxel.text(5, HEIGHT - 10, f"FPS: {self.fps}", 13)
+        pyxel.text(5, pyxel.height - 10, f"FPS: {self.fps}", 13)
 
-    def draw_slide(self, tokens):
-        visitor = Visitor(self)
-        visitor.walk(tokens)
+    def blt_slide(self):
+        img = pyxel.images[self.page % 3]
+        pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, max(img.width, WIDTH), max(img.height, HEIGHT))
 
 
 def use_font(font: str):
@@ -152,10 +180,11 @@ def use_color(fg: int, bg: int):
 
 
 class Visitor:
-    def __init__(self, app):
+    def __init__(self, app, img):
         self.app = app
-        self.x = WINDOW_PADDING  # 初期padding
-        self.y = WINDOW_PADDING  # 初期padding
+        self.img = img
+        self.x = 0
+        self.y = 0
         self.indent_stack = [self.x]
         self.font_stack = ["default"]
         self.color_stack = [(0, -1)]
@@ -199,12 +228,12 @@ class Visitor:
 
         # 背景色
         if self.bgcolor >= 0:
-            pyxel.rect(self.x, self.y, w, self.font_height, self.bgcolor)
+            self.img.rect(self.x, self.y, w, self.font_height, self.bgcolor)
 
         if DEBUG:
-            pyxel.rectb(self.x, self.y, w, self.font_height, 0)
+            self.img.rectb(self.x, self.y, w, self.font_height, 0)
 
-        pyxel.text(self.x, self.y, text, self.color, self.font)
+        self.img.text(self.x, self.y, text, self.color, self.font)
 
         # バグ: centerやrightの場合は連続で _text が呼ばれると位置がずれる
         self.x += w
@@ -272,9 +301,9 @@ class Visitor:
 
     def visit_text(self, token):
         content = token.content
-        max_width = (WIDTH - WINDOW_PADDING) - self.x
+        max_width = WIDTH - self.x
         if DEBUG:
-            pyxel.rectb(self.x, self.y, max_width, self.font_height, 2)
+            self.img.rectb(self.x, self.y, max_width, self.font_height, 2)
         while content:
             i = len(content)
             w = self.font.text_width(content)
@@ -351,7 +380,7 @@ class Visitor:
         hls = [self.font.text_width(line) for line in token.content.splitlines()]
         w = DEFAULT_LINE_HEIGHT + max(hls)
         h = DEFAULT_LINE_HEIGHT + len(hls) * DEFAULT_LINE_HEIGHT
-        pyxel.rect(self.x, self.y, w, h, 0)
+        self.img.rect(self.x, self.y, w, h, 0)
 
         self._indent(WINDOW_PADDING)
         self.y += WINDOW_PADDING
