@@ -1,0 +1,196 @@
+# title: Pyxel app 05-typing-filled-algo1
+# author: Takayuki Shimizukawa
+# desc: Pyxel app 05-typing-filled-algo1
+# site: https://github.com/shimizukawa/pyxel-app
+# license: MIT
+# version: 1.0
+#
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "pyxel",
+# ]
+# ///
+
+import json
+import random
+import dataclasses
+
+import pyxel
+
+TITLE = "Pyxel app 05-typing-filled-algo1"
+WIDTH = 320
+HEIGHT = 180
+CHAR_WIDTH = 6
+LEFT_MARGIN = WIDTH // 10
+CHAR_PER_LINE = (WIDTH - LEFT_MARGIN * 2) // CHAR_WIDTH
+MAX_LINES = 8
+
+font = pyxel.Font("assets/umplus_j12r.bdf")
+
+
+def load_words():
+    with open("assets/words.json", encoding="utf-8") as f:
+        words = json.load(f)
+    words = [s for s in words if s.isalpha()]
+    random.shuffle(words)
+    return words
+
+
+@dataclasses.dataclass
+class Line:
+    words: list[str] = dataclasses.field(default_factory=list)
+    chars_per_line: int = CHAR_PER_LINE
+
+    def __getitem__(self, i):
+        return self.words[i]
+
+    def __len__(self):
+        return len(self.words)
+
+    def __iter__(self):
+        yield from self.words
+
+    def append(self, word):
+        self.words.append(word)
+
+    @property
+    def text(self):
+        t = " ".join(self.words)
+        return t + " " if t else t
+
+    def can_add(self, word):
+        return len(self.text) + len(word) <= self.chars_per_line
+
+    def is_full(self):
+        return len(self.text) >= self.chars_per_line
+
+
+class Lines:
+    def __init__(self):
+        self.lines = [Line() for _ in range(MAX_LINES)]
+
+    def __getitem__(self, i):
+        return self.lines[i]
+
+    def __len__(self):
+        """単語数"""
+        return sum(len(line) for line in self.lines)
+
+    def __iter__(self):
+        yield from self.lines
+
+    def is_full(self):
+        return all(line.is_full() for line in self.lines)
+
+    def append(self, word: str):
+        if self.is_full():
+            return
+        for line in self.lines:
+            if line.can_add(word):
+                line.append(word)
+                break
+
+
+def draw_text_with_border(x, y, s, col, bcol, font):
+    for dx in range(-1, 2):
+        for dy in range(-1, 2):
+            if dx != 0 or dy != 0:
+                pyxel.text(
+                    x + dx,
+                    y + dy,
+                    s,
+                    bcol,
+                    font,
+                )
+    pyxel.text(x, y, s, col, font)
+
+
+class App:
+    def __init__(self):
+        pyxel.init(WIDTH, HEIGHT, title=TITLE)
+        self.img = pyxel.Image(WIDTH, HEIGHT)
+        pyxel.load("assets/res.pyxres")
+        self.words = load_words()
+        self.current_pos = 0
+        self.lines = Lines()
+        self.state = (-1, True)
+        self.trying = None
+        pyxel.run(self.update, self.draw)
+
+    def update(self):
+        if self.lines.is_full():
+            return
+
+        if pyxel.btnp(pyxel.KEY_SPACE, 10, 2) or pyxel.btnp(pyxel.KEY_RIGHT, 10, 2):
+            # 右かスペースで次の状態を開始
+            if self.state[1]:
+                word = self.words[self.current_pos]
+                self.trying = self.try_push_word(word)
+            try:
+                self.state = next(self.trying)
+            except StopIteration:
+                self.current_pos += 1
+                self.state = (-1, True)
+        # elif pyxel.btnp(pyxel.KEY_LEFT, 10, 2) and self.current_pos > 0:
+        #     # 左で前の状態に戻る
+        #     self.current_pos -= 1
+        #     self.state = (-1, True)
+        #     # FIXME: linesをロールバックしないといけない
+
+    def try_push_word(self, word):
+        for i, line in enumerate(self.lines):
+            if line.can_add(word):
+                yield (i, None)
+                line.append(word)
+                self.current_pos += 1
+                yield (i, True)
+                break
+            else:
+                yield (i, False)
+
+    def render(self):
+        self.img.cls(1)
+        next_words = self.words[self.current_pos : self.current_pos + 10]
+        word = next_words[0]
+        info1 = f"WORD: {self.current_pos} / {len(self.words)} : "
+        self.img.text(8, 8, info1, 7, font)
+        self.img.text(8 + font.text_width(info1), 8, word, 10, font)
+        w = font.text_width(word)
+        self.img.line(
+            8 + font.text_width(info1), 20, 8 + font.text_width(info1) + w, 20, 10
+        )
+        self.img.text(
+            8 + font.text_width(info1) + w, 8, f" {' '.join(next_words[1:])}", 7, font
+        )
+
+        for i, line in enumerate(self.lines):
+            text = line.text
+            y = 50 + i * 14
+            color = 5 if line.is_full() else 3
+            self.img.text(LEFT_MARGIN, y, text, color, font)
+            if self.state[0] == i:
+                self.img.rectb(
+                    LEFT_MARGIN - 1, y - 1, CHAR_PER_LINE * CHAR_WIDTH + 1, 16, 13
+                )
+                w0 = font.text_width(text)
+                if self.state[1] is None:  # None
+                    self.img.text(LEFT_MARGIN + w0, y, word, 10, font)
+                elif not self.state[1]:  # False
+                    self.img.text(LEFT_MARGIN + w0, y, word, 8, font)
+                if not self.state[1]:  # None or False
+                    self.img.line(
+                        8 + font.text_width(info1) + w // 2,
+                        22,
+                        LEFT_MARGIN + w0 + w // 2,
+                        y - 1,
+                        10,
+                    )
+
+    def draw(self):
+        self.render()
+        g = self.img
+        pyxel.blt(0, 0, g, 0, 0, g.width, g.height)
+
+
+App()

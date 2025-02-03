@@ -4,11 +4,24 @@
 
 ## アプリ起動
 
+### main.py: タイピングゲーム本体
+
 ```shell
 uv run main.py
 ```
 
-## 操作
+操作
 
 - 文字入力: キーボードの A ~ Z
+- 終了: ESC
+
+### main-algo1.py: 単語詰め込みアルゴリズム解説用アプリ 
+
+```shell
+uv run main-algo1.py
+```
+
+操作
+
+- スペース, 右キー: 処理を進める
 - 終了: ESC
