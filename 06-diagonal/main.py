@@ -52,7 +52,7 @@ class App:
     def update(self):
         self.calc_fps()
         for i, (x, y) in enumerate(self.positions):
-            x, y = (x-1, y+1)
+            x, y = (x - 1, y + 1)
             if x < -font.text_width(self.word):
                 x += self.wpl * self.ww
             if y > self.height:
@@ -65,9 +65,9 @@ class App:
     def draw(self):
         self.cls(1)
         for i, (x, y) in enumerate(self.positions):
-            draw_text_with_border(x, y, self.word, i, (8+i)%16, font)
-        pyxel.rect(20, 20, self.width-40, self.height-40, 0)
-        pyxel.rectb(20, 20, self.width-40, self.height-40, 2)
+            draw_text_with_border(x, y, self.word, i, (8 + i) % 16, font)
+        pyxel.rect(20, 20, self.width - 40, self.height - 40, 0)
+        pyxel.rectb(20, 20, self.width - 40, self.height - 40, 2)
         pyxel.text(30, 30, "Diagonal Scroll", 7)
         pyxel.text(5, self.height - 10, f"FPS: {self.fps}", 13)
 
