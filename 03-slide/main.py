@@ -26,12 +26,12 @@ MD_FILENAME = "slide.md"
 # DEBUG = True
 DEBUG = False
 
-LINE_NUMS = 12  # lines per page
+LINE_NUMS = 14  # lines per page
 LINE_MARGIN_RATIO = 0.3  # フォント高さの50%
 DEFAULT_LINE_HEIGHT = int(12 * (1 + LINE_MARGIN_RATIO))  # default font height 12
 WINDOW_PADDING = DEFAULT_LINE_HEIGHT // 2
 HEIGHT = DEFAULT_LINE_HEIGHT * LINE_NUMS
-WIDTH = HEIGHT * 4 // 3
+WIDTH = HEIGHT * 16 // 9
 KEY_REPEAT = 1  # for 30fps
 KEY_HOLD = 15  # for 30fps
 
@@ -78,7 +78,10 @@ class App:
         self.fps = 0
         self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
         pyxel.init(WIDTH + WINDOW_PADDING * 2, HEIGHT + WINDOW_PADDING, title=TITLE)
-        self.renderd_page_bank = [(None, pyxel.images[0]), (None, pyxel.images[1])]
+        self.renderd_page_bank = [
+            (None, pyxel.Image(WIDTH, HEIGHT)),
+            (None, pyxel.Image(WIDTH, HEIGHT)),
+        ]
         pyxel.mouse(True)
         self.render_page(0)
 
