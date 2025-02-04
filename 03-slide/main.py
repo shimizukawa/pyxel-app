@@ -26,8 +26,8 @@ MD_FILENAME = "slide.md"
 # DEBUG = True
 DEBUG = False
 
-LINE_NUMS = 14  # lines per page
-LINE_MARGIN_RATIO = 0.3  # フォント高さの50%
+LINE_NUMS = 12  # lines per page
+LINE_MARGIN_RATIO = 0.5  # フォント高さの50%
 DEFAULT_LINE_HEIGHT = int(12 * (1 + LINE_MARGIN_RATIO))  # default font height 12
 WINDOW_PADDING = DEFAULT_LINE_HEIGHT // 2
 HEIGHT = DEFAULT_LINE_HEIGHT * LINE_NUMS
@@ -36,7 +36,7 @@ KEY_REPEAT = 1  # for 30fps
 KEY_HOLD = 15  # for 30fps
 
 # The Font class only supports BDF format fonts
-font_title = pyxel.Font("assets/b16.bdf")
+font_title = pyxel.Font("assets/b24.bdf")
 font_pagetitle = pyxel.Font("assets/b16_b.bdf")
 font_default = pyxel.Font("assets/b12.bdf")
 font_bold = pyxel.Font("assets/b12_b.bdf")
@@ -557,6 +557,11 @@ class Visitor:
     @use_color(7, -1)
     def visit_fence(self, token):
         hls = [self.font.text_width(line) for line in token.content.splitlines()]
+        if token.info:
+            print("fence info", token.info)
+        if not hls:
+            print("fence: No content")
+            return
         w = DEFAULT_LINE_HEIGHT + max(hls)
         h = DEFAULT_LINE_HEIGHT + len(hls) * DEFAULT_LINE_HEIGHT
         self.img.rect(self.x, self.y, w, h, 0)
