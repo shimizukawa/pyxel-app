@@ -118,7 +118,6 @@ class WordSet:
 
         self._update_word_loc()
         self.words = [word for line in self.lines for word in line]
-        print(f"Words: {len(self.words)}/{len(words)}")
 
     def _append(self, text: str) -> bool:
         word = Word(text)
