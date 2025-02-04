@@ -83,16 +83,16 @@ class Word:
 
         return (correct, self.typed_pos == len(self.text))
 
-    def draw(self, offset_x, offset_y):
+    def draw(self, img, offset_x, offset_y):
         """文字列を入力済みと未入力分とで表現を変えてx,y座標に描画する"""
         before = self.text[: self.typed_pos]
         after = self.text[self.typed_pos :]
         x = self.x + offset_x
         y = self.y + offset_y
         if before:
-            draw_text_with_border(x, y, before, 3, 0, font)
+            draw_text_with_border(img, x, y, before, 3, 0, font)
         if after:
-            pyxel.text(x + font.text_width(before), y, after, 3, font)
+            img.text(x + font.text_width(before), y, after, 3, font)
 
 
 class WordSet:
@@ -160,30 +160,31 @@ class WordSet:
             self.word_pos += 1
         return corr, comp
 
-    def draw(self, x, y):
+    def draw(self, img, x, y):
         for line in self.lines:
             for word in line:
-                word.draw(x, y)
+                word.draw(img, x, y)
 
 
-def draw_text_with_border(x, y, s, col, bcol, font):
+def draw_text_with_border(img, x, y, s, col, bcol, font):
     for dx in range(-1, 2):
         for dy in range(-1, 2):
             if dx != 0 or dy != 0:
-                pyxel.text(
+                img.text(
                     x + dx,
                     y + dy,
                     s,
                     bcol,
                     font,
                 )
-    pyxel.text(x, y, s, col, font)
+    img.text(x, y, s, col, font)
 
 
 class App:
     def __init__(self):
         pyxel.init(WIDTH, HEIGHT, title=TITLE)
         pyxel.load("assets/res.pyxres")
+        self.img = pyxel.Image(WIDTH, HEIGHT)
         self.reset()
 
         # run forever
@@ -251,16 +252,17 @@ class App:
             return self.error / self.time * 60
         return 0
 
-    def draw(self):
-        pyxel.cls(1)
-        pyxel.text(8, 8, f"TIME: {self.time: >4.1f} / 60", 7, font)
-        pyxel.text(8, 20, f"WORDS: {self.wordset.word_pos: >2}", 7, font)
-        pyxel.text(120, 8, f"TYPE: {self.score: >5}", 7, font)
-        pyxel.text(120, 20, f"TPM: {self.tpm: >8.1f}", 7, font)
-        pyxel.text(220, 8, f"ERROR: {self.error: >4}", 14, font)
-        pyxel.text(220, 20, f"EPM: {self.epm: >8.1f}", 14, font)
+    def render(self):
+        g = self.img
+        g.cls(1)
+        g.text(8, 8, f"TIME: {self.time: >4.1f} / 60", 7, font)
+        g.text(8, 20, f"WORDS: {self.wordset.word_pos: >2}", 7, font)
+        g.text(120, 8, f"TYPE: {self.score: >5}", 7, font)
+        g.text(120, 20, f"TPM: {self.tpm: >8.1f}", 7, font)
+        g.text(220, 8, f"ERROR: {self.error: >4}", 14, font)
+        g.text(220, 20, f"EPM: {self.epm: >8.1f}", 14, font)
 
-        self.wordset.draw(LEFT_MARGIN, 50)
+        self.wordset.draw(g, LEFT_MARGIN, 50)
 
         if not self.started:
             if self.wordset.is_finished:
@@ -277,10 +279,15 @@ class App:
             color = (pyxel.frame_count // 3) % 12 + 4
             for i, line in enumerate(text.splitlines()):
                 # 行ごとにセンタリング
-                x = (pyxel.width - font.text_width(line)) // 2
+                x = (g.width - font.text_width(line)) // 2
                 draw_text_with_border(
-                    x, pyxel.height // 2 + i * 14, line, color, 0, font
+                    self.img, x, g.height // 2 + i * 14, line, color, 0, font
                 )
+
+    def draw(self):
+        self.render()
+        g = self.img
+        pyxel.blt(0, 0, g, 0, 0, g.width, g.height)
 
 
 App()
