@@ -24,8 +24,6 @@ WIDTH = 320
 HEIGHT = 180
 CHAR_WIDTH = 6
 LINE_HEIGHT = 14
-LEFT_MARGIN = WIDTH // 10
-CHAR_PER_LINE = (WIDTH - LEFT_MARGIN * 2) // CHAR_WIDTH
 MAX_LINES = 8
 
 font = pyxel.Font("assets/umplus_j12r.bdf")
@@ -100,15 +98,16 @@ class WordSet:
     words: list[Word]
     lines: list[list[Word]]
 
-    def __init__(self, words: list[str]):
+    def __init__(self, words: list[str], max_lines, char_per_line):
         self.word_pos = 0
-        self.lines = [[] for _ in range(MAX_LINES)]
+        self.char_per_line = char_per_line
+        self.lines = [[] for _ in range(max_lines)]
 
         # 単語リストから、文字数がいっぱいになるところまで選択する
         _total = 0
         for i, text in enumerate(words):
             _total += len(text) + 1
-            if _total > CHAR_PER_LINE * MAX_LINES:
+            if _total > char_per_line * max_lines:
                 break
 
         # 使用する単語を文字数の多い順に詰め込んでいく
@@ -130,7 +129,7 @@ class WordSet:
 
         # 先頭行に追加できるかチェック
         col = sum(len(w) for w in self.lines[0])
-        if col + size > CHAR_PER_LINE:
+        if col + size > self.char_per_line:
             return False
 
         self.lines[0].append(word)
@@ -181,18 +180,18 @@ def draw_text_with_border(img, x, y, s, col, bcol, font):
 
 
 class App:
-    def __init__(self):
-        pyxel.init(WIDTH, HEIGHT, title=TITLE)
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.img = pyxel.Image(width, height)
         pyxel.load("assets/res.pyxres")
-        self.img = pyxel.Image(WIDTH, HEIGHT)
         self.reset()
-
-        # run forever
-        pyxel.run(self.update, self.draw)
 
     def reset(self):
         words = load_words()
-        self.wordset = WordSet(words)
+        left_margin = self.width // 10
+        char_per_line = (self.width - left_margin * 2) // CHAR_WIDTH
+        self.wordset = WordSet(words, MAX_LINES, char_per_line)
         self.score = 0
         self.error = 0
         self.start_time = time.time()
@@ -262,7 +261,7 @@ class App:
         g.text(220, 8, f"ERROR: {self.error: >4}", 14, font)
         g.text(220, 20, f"EPM: {self.epm: >8.1f}", 14, font)
 
-        self.wordset.draw(g, LEFT_MARGIN, 50)
+        self.wordset.draw(g, self.width // 10, 50)
 
         if not self.started:
             if self.wordset.is_finished:
@@ -283,11 +282,34 @@ class App:
                 draw_text_with_border(
                     self.img, x, g.height // 2 + i * 14, line, color, 0, font
                 )
+        return g
 
     def draw(self):
-        self.render()
-        g = self.img
+        g = self.render()
         pyxel.blt(0, 0, g, 0, 0, g.width, g.height)
 
 
-App()
+class ParentApp:
+    def __init__(self):
+        pyxel.init(WIDTH, HEIGHT, "Pyxel in Pyxel")
+        self.child = App(width=WIDTH, height=HEIGHT)
+        pyxel.run(self.update, self.draw)
+
+    def update(self):
+        self.child.update()
+
+    def draw(self):
+        g = self.child.render()
+        pyxel.blt(
+            (pyxel.width - g.width) // 2,
+            (pyxel.height - g.height) // 2,
+            g,
+            0,
+            0,
+            g.width,
+            g.height,
+        )
+
+
+if __name__ == "__main__":
+    ParentApp()

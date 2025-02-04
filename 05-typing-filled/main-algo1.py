@@ -22,8 +22,6 @@ TITLE = "Pyxel app 05-typing-filled-algo1"
 WIDTH = 320
 HEIGHT = 180
 CHAR_WIDTH = 6
-LEFT_MARGIN = WIDTH // 10
-CHAR_PER_LINE = (WIDTH - LEFT_MARGIN * 2) // CHAR_WIDTH
 MAX_LINES = 8
 
 font = pyxel.Font("assets/umplus_j12r.bdf")
@@ -39,8 +37,8 @@ def load_words():
 
 @dataclasses.dataclass
 class Line:
+    chars_per_line: int
     words: list[str] = dataclasses.field(default_factory=list)
-    chars_per_line: int = CHAR_PER_LINE
 
     def __getitem__(self, i):
         return self.words[i]
@@ -67,8 +65,8 @@ class Line:
 
 
 class Lines:
-    def __init__(self):
-        self.lines = [Line() for _ in range(MAX_LINES)]
+    def __init__(self, char_per_line):
+        self.lines = [Line(char_per_line) for _ in range(MAX_LINES)]
 
     def __getitem__(self, i):
         return self.lines[i]
@@ -105,16 +103,18 @@ class State:
 
 
 class App:
-    def __init__(self):
-        pyxel.init(WIDTH, HEIGHT, title=TITLE)
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
         self.img = pyxel.Image(WIDTH, HEIGHT)
         pyxel.load("assets/res.pyxres")
         self.words = load_words()
         self.current_pos = 0
-        self.lines = Lines()
+        self.left_margin = self.width // 10
+        self.char_per_line = (self.width - self.left_margin * 2) // CHAR_WIDTH
+        self.lines = Lines(self.char_per_line)
         self.state = State(-1, True)
         self.trying = None
-        pyxel.run(self.update, self.draw)
 
     def update(self):
         if self.lines.is_full():
@@ -148,51 +148,77 @@ class App:
                 yield State(i, False)
 
     def render(self):
-        self.img.cls(1)
+        g = self.img
+        g.cls(1)
         next_words = self.words[self.current_pos : self.current_pos + 10]
         word = next_words[0]
         info1 = f"WORD: {self.current_pos} / {len(self.words)} : "
-        self.img.text(8, 8, info1, 7, font)
-        self.img.text(8 + font.text_width(info1), 8, word, 10, font)
+        g.text(8, 8, info1, 7, font)
+        g.text(8 + font.text_width(info1), 8, word, 10, font)
         w = font.text_width(word)
-        self.img.line(
+        g.line(
             8 + font.text_width(info1), 20, 8 + font.text_width(info1) + w, 20, 10
         )
-        self.img.text(
+        g.text(
             8 + font.text_width(info1) + w, 8, f" {' '.join(next_words[1:])}", 7, font
         )
+        left_margin = self.left_margin
 
         for i, line in enumerate(self.lines):
             text = line.text
             y = 50 + i * 14
             color = 5 if line.is_full() else 3
-            self.img.text(LEFT_MARGIN, y, text, color, font)
-            self.img.rectb(
-                LEFT_MARGIN - 2, y - 1, CHAR_PER_LINE * CHAR_WIDTH + 2, 15, 5
+            g.text(left_margin, y, text, color, font)
+            g.rectb(
+                left_margin - 2, y - 1, self.char_per_line * CHAR_WIDTH + 2, 15, 5
             )
             if self.state.line == i:
                 w0 = font.text_width(text)
                 if self.state.result is None:  # trying
-                    self.img.text(LEFT_MARGIN + w0, y, word, 10, font)
+                    g.text(left_margin + w0, y, word, 10, font)
                 elif not self.state.result:  # failed
-                    self.img.text(LEFT_MARGIN + w0, y, word, 8, font)
+                    g.text(left_margin + w0, y, word, 8, font)
                 if not self.state.result:  # trying or failed
-                    self.img.line(
+                    g.line(
                         8 + font.text_width(info1) + w // 2,
                         22,
-                        LEFT_MARGIN + w0 + w // 2,
+                        left_margin + w0 + w // 2,
                         y - 1,
                         10,
                     )
 
         if self.state.line >= 0:
             y = 50 + self.state.line * 14 - 1
-            self.img.rectb(LEFT_MARGIN - 2, y, CHAR_PER_LINE * CHAR_WIDTH + 2, 15, 13)
+            g.rectb(left_margin - 2, y, self.char_per_line * CHAR_WIDTH + 2, 15, 13)
+
+        return g
 
     def draw(self):
-        self.render()
-        g = self.img
+        g = self.render()
         pyxel.blt(0, 0, g, 0, 0, g.width, g.height)
 
 
-App()
+class ParentApp:
+    def __init__(self):
+        pyxel.init(WIDTH, HEIGHT, TITLE)
+        self.child = App(width=WIDTH, height=HEIGHT)
+        pyxel.run(self.update, self.draw)
+
+    def update(self):
+        self.child.update()
+
+    def draw(self):
+        g = self.child.render()
+        pyxel.blt(
+            (pyxel.width - g.width) // 2,
+            (pyxel.height - g.height) // 2,
+            g,
+            0,
+            0,
+            g.width,
+            g.height,
+        )
+
+
+if __name__ == "__main__":
+    ParentApp()
