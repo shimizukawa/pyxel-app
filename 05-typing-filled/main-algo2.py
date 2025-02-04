@@ -48,6 +48,9 @@ class Word:
     def __post_init__(self):
         self.text = self.text.lower()
 
+    def __eq__(self, value: str):
+        return self.text == value.lower()
+
     def __len__(self) -> int:
         return len(self.text) + 1  # 単語の文字数と区切りのスペース
 
@@ -65,33 +68,32 @@ class State:
 class Transitter:
     def __init__(self, default: int, duration: float = 0.5):
         self.default = default
-        self.duration = duration
+        self.dur = duration
 
     def __set_name__(self, owner, name):
         self.name = "__" + name
 
     def __get__(self, instance, owner):
         obj = getattr(instance, self.name, {"value": self.default})
-        if obj.get("in_transition"):
-            elapsed = time.time() - obj["at_time"]
-            if elapsed >= self.duration:
-                obj["in_transition"] = False
+        value = obj["value"]
+        if "start_at" in obj:
+            elapsed = time.time() - obj["start_at"]
+            if elapsed >= self.dur:
+                del obj["start_at"]
             else:
-                from_value = obj["from_value"]
-                return from_value + (obj["value"] - from_value) * (elapsed / self.duration)
-        return obj["value"]
+                oval = obj["ovalue"]
+                return oval + (value - oval) * (elapsed / self.dur)
+        return value
 
     def __set__(self, instance, value):
         old_obj = getattr(instance, self.name, {})
-        from_value = old_obj.get("value")
+        oval = old_obj.get("value")
         obj = {
-            "in_transition": False,
-            "at_time": time.time(),
-            "from_value": from_value,
+            "ovalue": oval,
             "value": value,
         }
-        if from_value is not None and from_value != value:
-            obj["in_transition"] = True
+        if oval is not None and oval != value:
+            obj["start_at"] = time.time()
         setattr(instance, self.name, obj)
 
 
@@ -129,7 +131,6 @@ class Line(list):
         return x, y
 
 
-
 class WordSet:
     word_pos: int
     words: list[str]
@@ -139,13 +140,16 @@ class WordSet:
         self.word_pos = 0
         self.char_per_line = char_per_line
         self.words = words
-        self.lines = [Line(id=i+1, char_per_line=char_per_line) for i in range(max_lines)]
+        self.lines = [
+            Line(id=i + 1, char_per_line=char_per_line) for i in range(max_lines)
+        ]
         self.sort_lines()
 
         # 単語リストから、文字数がいっぱいになるところまで選択する
         _total = 0
         for i, text in enumerate(words):
-            _total += len(text)  # 区切りスペースを考慮しないことで多めに単語を積んでおく
+            # 区切りスペースを考慮しないことで多めに単語を積んでおく
+            _total += len(text)
             if _total > char_per_line * max_lines:
                 break
         self.words = sorted(words[:i], key=len, reverse=True)
@@ -171,17 +175,18 @@ class WordSet:
 
     def remove(self, word: str):
         for line in self.lines:
-            for w in line:
-                if w.text == word:
-                    line.remove(w)
-                    self.word_pos += 1
-                    return
+            if word in line:
+                line.remove(word)
+                self.word_pos -= 1
+                return
 
     @property
     def is_finished(self) -> bool:
         if self.word_pos >= len(self.words):
             return True
-        return all(sum(len(w) for w in line) >= self.char_per_line for line in self.lines)
+        return all(
+            sum(len(w) for w in line) >= self.char_per_line for line in self.lines
+        )
 
 
 def draw_text_with_border(img, x, y, s, col, bcol, font):
@@ -233,6 +238,7 @@ class App:
             word = self.words[self.current_pos]
             self.state = State(-1, word, Status.start)
             self.wordset.remove(word)
+            self.wordset.sort_lines()
 
     def try_push_word(self, word):
         # 使用する単語を文字数の多い順に詰め込んでいく
@@ -255,7 +261,6 @@ class App:
 
         print("end of try_push_word")
 
-
     def render(self):
         g = self.img
         next_words = self.words[self.current_pos : self.current_pos + 10]
@@ -267,9 +272,7 @@ class App:
         word = next_words[0]
         g.text(8 + font.text_width(info1), 8, word, 10, font)
         w = font.text_width(word)
-        g.line(
-            8 + font.text_width(info1), 20, 8 + font.text_width(info1) + w, 20, 10
-        )
+        g.line(8 + font.text_width(info1), 20, 8 + font.text_width(info1) + w, 20, 10)
         g.text(
             8 + font.text_width(info1) + w, 8, f" {' '.join(next_words[1:])}", 7, font
         )
