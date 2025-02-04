@@ -91,7 +91,7 @@ class App:
             # スタート後60秒以上経過している
             self.finish()
             return
-    
+
         self.time = time.time() - self.start_time
         ch = self.cur_text[self.cur_pos]
         for c in range(ord("a"), ord("z") + 1):
@@ -133,7 +133,7 @@ class App:
         if before:
             draw_text_with_border(50, 50, before, 3, 0, font)
         if after:
-            pyxel.text(50+w, 50, after, 11, font)
+            pyxel.text(50 + w, 50, after, 11, font)
 
         pyxel.text(8, 8, f"TIME: {self.time: >4.1f} / 60", 7, font)
         pyxel.text(8, 20, f"WORDS: {self.words: >2}", 7, font)
@@ -155,6 +155,9 @@ class App:
             for i, line in enumerate(text.splitlines()):
                 # 行ごとにセンタリング
                 x = (pyxel.width - font.text_width(line)) // 2
-                draw_text_with_border(x, pyxel.height // 2 + i * 10, line, color, 0, font)
+                draw_text_with_border(
+                    x, pyxel.height // 2 + i * 10, line, color, 0, font
+                )
+
 
 App()

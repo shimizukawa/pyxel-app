@@ -129,14 +129,18 @@ class ParentApp:
 
         if self.move_child:
             self.child.update()
-        
+
         if self.move_parent:
             self.parent_count += 1
             x = int(
-                (pyxel.width - self.child.width) // 2 * (1 + pyxel.sin(self.parent_count))
+                (pyxel.width - self.child.width)
+                // 2
+                * (1 + pyxel.sin(self.parent_count))
             )
             y = int(
-                (pyxel.height - self.child.height) // 2 * (1 + pyxel.cos(self.parent_count))
+                (pyxel.height - self.child.height)
+                // 2
+                * (1 + pyxel.cos(self.parent_count))
             )
             self.child_camera = (-x, -y)
 

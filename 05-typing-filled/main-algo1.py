@@ -156,9 +156,7 @@ class App:
         g.text(8, 8, info1, 7, font)
         g.text(8 + font.text_width(info1), 8, word, 10, font)
         w = font.text_width(word)
-        g.line(
-            8 + font.text_width(info1), 20, 8 + font.text_width(info1) + w, 20, 10
-        )
+        g.line(8 + font.text_width(info1), 20, 8 + font.text_width(info1) + w, 20, 10)
         g.text(
             8 + font.text_width(info1) + w, 8, f" {' '.join(next_words[1:])}", 7, font
         )
@@ -169,9 +167,7 @@ class App:
             y = 50 + i * 14
             color = 5 if line.is_full() else 3
             g.text(left_margin, y, text, color, font)
-            g.rectb(
-                left_margin - 2, y - 1, self.char_per_line * CHAR_WIDTH + 2, 15, 5
-            )
+            g.rectb(left_margin - 2, y - 1, self.char_per_line * CHAR_WIDTH + 2, 15, 5)
             if self.state.line == i:
                 w0 = font.text_width(text)
                 if self.state.result is None:  # trying

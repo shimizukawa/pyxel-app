@@ -106,11 +106,19 @@ class ParentApp:
 
     def update(self):
         self.child.update()
-        
+
     def draw(self):
         g = self.child.img
         self.child.render()
-        pyxel.blt((pyxel.width-g.width)//2, (pyxel.height-g.height)//2, g, 0, 0, g.width, g.height)
+        pyxel.blt(
+            (pyxel.width - g.width) // 2,
+            (pyxel.height - g.height) // 2,
+            g,
+            0,
+            0,
+            g.width,
+            g.height,
+        )
 
 
 if __name__ == "__main__":
