@@ -144,7 +144,10 @@ class App:
         self.page = max((self.page - 1), 0)
 
     def go_next_page(self):
-        if self.page + 1 not in self.first_pages_in_section and self.page != len(self.slides) - 1:
+        if (
+            self.page + 1 not in self.first_pages_in_section
+            and self.page != len(self.slides) - 1
+        ):
             self.page += 1
 
     def go_prev_page(self):
@@ -207,7 +210,7 @@ class App:
         """render page (page_num) to old image bank"""
         if page_num >= len(self.slides):
             return
-        for (p, img) in self.renderd_page_bank:
+        for p, img in self.renderd_page_bank:
             if p == page_num:
                 return img
 
@@ -232,52 +235,103 @@ class App:
             rate, old_page, direction = self.in_transition
             if direction == "down":
                 old_x = WINDOW_PADDING
-                old_y = WINDOW_PADDING - HEIGHT * (1 - rate)
+                old_y = WINDOW_PADDING - HEIGHT * (1 - rate) ** 2
                 new_x = WINDOW_PADDING
-                new_y = WINDOW_PADDING + HEIGHT * rate
+                new_y = WINDOW_PADDING + HEIGHT * rate**2
             elif direction == "up":
                 old_x = WINDOW_PADDING
-                old_y = WINDOW_PADDING + HEIGHT * (1 - rate)
+                old_y = WINDOW_PADDING + HEIGHT * (1 - rate) ** 2
                 new_x = WINDOW_PADDING
-                new_y = WINDOW_PADDING - HEIGHT * rate
+                new_y = WINDOW_PADDING - HEIGHT * rate**2
             elif direction == "right":
-                old_x = WINDOW_PADDING - WIDTH * (1 - rate)
+                old_x = WINDOW_PADDING - WIDTH * (1 - rate) ** 2
                 old_y = WINDOW_PADDING
-                new_x = WINDOW_PADDING + WIDTH * rate
+                new_x = WINDOW_PADDING + WIDTH * rate**2
                 new_y = WINDOW_PADDING
             elif direction == "left":
-                old_x = WINDOW_PADDING + WIDTH * (1 - rate)
+                old_x = WINDOW_PADDING + WIDTH * (1 - rate) ** 2
                 old_y = WINDOW_PADDING
-                new_x = WINDOW_PADDING - WIDTH * rate
+                new_x = WINDOW_PADDING - WIDTH * rate**2
                 new_y = WINDOW_PADDING
             new_img = self.get_rendered_img(self.page)
             old_img = self.get_rendered_img(old_page)
             pyxel.dither(rate)
-            pyxel.blt(old_x, old_y, old_img, 0, 0, WIDTH, HEIGHT)
+            pyxel.blt(old_x, old_y, old_img, 0, 0, WIDTH, HEIGHT, 7)
             pyxel.dither(1 - rate)
-            pyxel.blt(new_x, new_y, new_img, 0, 0, WIDTH, HEIGHT)
+            pyxel.blt(new_x, new_y, new_img, 0, 0, WIDTH, HEIGHT, 7)
             pyxel.dither(1)
         else:
             img = self.get_rendered_img(self.page)
             pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, WIDTH, HEIGHT)
 
     def draw_nav(self):
-        if self.page + 1 not in self.first_pages_in_section and self.page != len(self.slides) - 1:
+        if (
+            self.page + 1 not in self.first_pages_in_section
+            and self.page != len(self.slides) - 1
+        ):
             # セクション内の最後のページではない
-            pyxel.line(pyxel.width - 20, pyxel.height - 10, pyxel.width - 15, pyxel.height - 15, 5)
-            pyxel.line(pyxel.width - 20, pyxel.height - 10, pyxel.width - 25, pyxel.height - 15, 5)
+            pyxel.line(
+                pyxel.width - 20,
+                pyxel.height - 10,
+                pyxel.width - 15,
+                pyxel.height - 15,
+                5,
+            )
+            pyxel.line(
+                pyxel.width - 20,
+                pyxel.height - 10,
+                pyxel.width - 25,
+                pyxel.height - 15,
+                5,
+            )
         if self.page < self.first_pages_in_section[-1]:
             # 最後のセクションではない
-            pyxel.line(pyxel.width - 5, pyxel.height - 25, pyxel.width - 10, pyxel.height - 20, 5)
-            pyxel.line(pyxel.width - 5, pyxel.height - 25, pyxel.width - 10, pyxel.height - 30, 5)
+            pyxel.line(
+                pyxel.width - 5,
+                pyxel.height - 25,
+                pyxel.width - 10,
+                pyxel.height - 20,
+                5,
+            )
+            pyxel.line(
+                pyxel.width - 5,
+                pyxel.height - 25,
+                pyxel.width - 10,
+                pyxel.height - 30,
+                5,
+            )
         if self.page not in self.first_pages_in_section:
             # セクション内の最初のページではない
-            pyxel.line(pyxel.width - 20, pyxel.height - 40, pyxel.width - 15, pyxel.height - 35, 6)
-            pyxel.line(pyxel.width - 20, pyxel.height - 40, pyxel.width - 25, pyxel.height - 35, 6)
+            pyxel.line(
+                pyxel.width - 20,
+                pyxel.height - 40,
+                pyxel.width - 15,
+                pyxel.height - 35,
+                6,
+            )
+            pyxel.line(
+                pyxel.width - 20,
+                pyxel.height - 40,
+                pyxel.width - 25,
+                pyxel.height - 35,
+                6,
+            )
         if self.page != 0:
             # 最初のセクションではない
-            pyxel.line(pyxel.width - 35, pyxel.height - 25, pyxel.width - 30, pyxel.height - 20, 6)
-            pyxel.line(pyxel.width - 35, pyxel.height - 25, pyxel.width - 30, pyxel.height - 30, 6)
+            pyxel.line(
+                pyxel.width - 35,
+                pyxel.height - 25,
+                pyxel.width - 30,
+                pyxel.height - 20,
+                6,
+            )
+            pyxel.line(
+                pyxel.width - 35,
+                pyxel.height - 25,
+                pyxel.width - 30,
+                pyxel.height - 30,
+                6,
+            )
 
 
 def use_font(font: str):
