@@ -327,6 +327,10 @@ class App:
         else:
             img = self.get_rendered_img(self.page)
             pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, WIDTH, HEIGHT)
+            if self.child_is_updated:
+                pyxel.dither(0.5)
+                pyxel.rect(0, 0, pyxel.width, pyxel.height, 13)
+                pyxel.dither(1.0)
 
     def blt_child(self):
         """子アプリのオーバーレイ"""
