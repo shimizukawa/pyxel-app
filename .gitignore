@@ -2,10 +2,10 @@
 __pycache__/
 *.py[oc]
 build/
+_build/
 dist/
 wheels/
 *.egg-info
-
-# Virtual environments
-.venv
-_build
+.venv/
+.vscode/
+.python-version
