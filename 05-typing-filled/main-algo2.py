@@ -15,6 +15,7 @@
 import enum
 import json
 import random
+import time
 import dataclasses
 
 import pyxel
@@ -51,10 +52,82 @@ class Word:
         return len(self.text) + 1  # 単語の文字数と区切りのスペース
 
 
+Status = enum.Enum("Status", "start sorting trying failed success")
+
+
+@dataclasses.dataclass(frozen=True)
+class State:
+    line: int
+    word: str
+    status: Status
+
+
+class Transitter:
+    def __init__(self, default: int, duration: float = 0.5):
+        self.default = default
+        self.duration = duration
+
+    def __set_name__(self, owner, name):
+        self.name = "__" + name
+
+    def __get__(self, instance, owner):
+        obj = getattr(instance, self.name, {"value": self.default})
+        if obj.get("in_transition"):
+            elapsed = time.time() - obj["at_time"]
+            if elapsed >= self.duration:
+                obj["in_transition"] = False
+            else:
+                from_value = obj["from_value"]
+                return from_value + (obj["value"] - from_value) * (elapsed / self.duration)
+        return obj["value"]
+
+    def __set__(self, instance, value):
+        old_obj = getattr(instance, self.name, {})
+        from_value = old_obj.get("value")
+        obj = {
+            "in_transition": False,
+            "at_time": time.time(),
+            "from_value": from_value,
+            "value": value,
+        }
+        if from_value is not None and from_value != value:
+            obj["in_transition"] = True
+        setattr(instance, self.name, obj)
+
+
 class Line(list):
-    def __init__(self, *args, id=None, **kwargs):
+    x = Transitter(0)
+    y = Transitter(0)
+
+    def __init__(self, *args, id, char_per_line, **kwargs):
         super().__init__(*args, **kwargs)
         self.id = id
+        self.char_per_line = char_per_line
+
+    def draw(self, img, x, y, font, state: State | None) -> tuple[int, int]:
+        x = self.x + x
+        y = self.y + y
+        text = (" ".join(w.text for w in self) + " ").lstrip()
+        color = 5 if len(text) >= self.char_per_line - 1 else 3
+        prefix = f"{self.id: 2}-"
+        img.text(x, y, prefix, 7, font)
+        x += font.text_width(prefix)
+        img.text(x, y, text, color, font)
+        img.rectb(
+            x - 2, y - 1, self.char_per_line * CHAR_WIDTH + 2, 15, 13 if state else 5
+        )
+        x += font.text_width(text)
+        if not state:
+            return x, y
+
+        match state.status:
+            case Status.trying:
+                img.text(x, y, state.word, 10, font)
+            case Status.failed:
+                img.text(x, y, state.word, 8, font)
+
+        return x, y
+
 
 
 class WordSet:
@@ -65,8 +138,9 @@ class WordSet:
     def __init__(self, words: list[str], max_lines, char_per_line):
         self.word_pos = 0
         self.char_per_line = char_per_line
-        self.lines = [Line(id=i+1) for i in range(max_lines)]
         self.words = words
+        self.lines = [Line(id=i+1, char_per_line=char_per_line) for i in range(max_lines)]
+        self.sort_lines()
 
         # 単語リストから、文字数がいっぱいになるところまで選択する
         _total = 0
@@ -79,6 +153,8 @@ class WordSet:
     def sort_lines(self):
         # 文字列が少ない順に並べて、先頭行に詰め込む
         self.lines.sort(key=lambda line: sum(len(w) for w in line))
+        for i, line in enumerate(self.lines):
+            line.y = i * LINE_HEIGHT
 
     def append(self, text: str) -> bool:
         word = Word(text)
@@ -122,15 +198,6 @@ def draw_text_with_border(img, x, y, s, col, bcol, font):
     img.text(x, y, s, col, font)
 
 
-Status = enum.Enum("Status", "start sorting trying failed success")
-
-
-@dataclasses.dataclass(frozen=True)
-class State:
-    line: int
-    status: Status
-
-
 class App:
     def __init__(self, width, height):
         self.width = width
@@ -138,7 +205,7 @@ class App:
         self.img = pyxel.Image(WIDTH, HEIGHT)
         pyxel.load("assets/res.pyxres")
         self.current_pos = 0
-        self.state = State(-1, Status.start)
+        self.state = State(-1, "", Status.start)
         self.trying = None
 
         words = load_words()
@@ -148,15 +215,13 @@ class App:
         self.words = self.wordset.words
 
     def update(self):
-        if self.wordset.is_finished:
-            return
-
         if pyxel.btnp(pyxel.KEY_SPACE, 10, 1) or pyxel.btnp(pyxel.KEY_RIGHT, 10, 2):
             # 右かスペースで次の状態を開始
             if self.wordset.is_finished:
                 # もう終了している場合は何もしない
-                self.state = State(-1, Status.start)
-            else:
+                self.state = State(-1, "", Status.start)
+                return
+            if self.current_pos < len(self.words):
                 # 次の単語を試行する
                 word = self.words[self.current_pos]
                 self.state = self.try_push_word(word)
@@ -164,25 +229,26 @@ class App:
                     self.current_pos += 1
         elif pyxel.btnp(pyxel.KEY_LEFT, 10, 2) and self.current_pos >= 0:
             # 左で前の状態に戻る
-            self.state = State(-1, Status.start)
             self.current_pos = max(self.current_pos - 1, 0)
-            self.wordset.remove(self.words[self.current_pos])
+            word = self.words[self.current_pos]
+            self.state = State(-1, word, Status.start)
+            self.wordset.remove(word)
 
     def try_push_word(self, word):
         # 使用する単語を文字数の多い順に詰め込んでいく
         match self.state.status:
             case Status.start:
                 self.wordset.sort_lines()
-                return State(0, Status.sorting)
+                return State(0, word, Status.sorting)
             case Status.sorting:
-                return State(0, Status.trying)
+                return State(0, word, Status.trying)
             case Status.trying:
                 if self.wordset.append(word):
-                    return State(0, Status.success)
+                    return State(0, word, Status.success)
                 else:
-                    return State(0, Status.failed)
+                    return State(0, word, Status.failed)
             case Status.success | Status.failed:
-                return State(0, Status.start)
+                return State(0, "", Status.start)
             case _:
                 print("match default")
                 return self.state
@@ -209,36 +275,17 @@ class App:
         )
         g.text(8, 20, f"Status: {self.state.status.name}", 7, font)
 
-        for i, line in enumerate(self.wordset.lines):
-            text = (" ".join(w.text for w in line) + " ").lstrip()
-            y = 50 + i * 14
-            color = 5 if len(text) >= self.char_per_line - 1 else 3
-            prefix = f"{line.id: 2}-"
-            left_margin = self.left_margin
-            g.text(left_margin, y, prefix, 7, font)
-            left_margin += font.text_width(prefix)
-            g.text(left_margin, y, text, color, font)
-            g.rectb(
-                left_margin - 2, y - 1, self.char_per_line * CHAR_WIDTH + 2, 15, 5
-            )
-            if self.state.line == i:
-                w0 = font.text_width(text)
-                if self.state.status == Status.trying:
-                    g.text(left_margin + w0, y, word, 10, font)
-                elif self.state.status == Status.failed:
-                    g.text(left_margin + w0, y, word, 8, font)
-                if self.state.status in (Status.trying, Status.failed):
-                    g.line(
-                        8 + font.text_width(info1) + w // 2,
-                        22,
-                        left_margin + w0 + w // 2,
-                        y - 1,
-                        10,
-                    )
-
-        if self.state.line >= 0:
-            y = 50 + self.state.line * 14 - 1
-            g.rectb(left_margin - 2, y, self.char_per_line * CHAR_WIDTH + 2, 15, 13)
+        for i, line in reversed(list(enumerate(self.wordset.lines))):
+            state = self.state if self.state.line == i else None
+            last_x, last_y = line.draw(g, self.left_margin, 50, font, state)
+            if state and state.status in (Status.trying, Status.failed):
+                g.line(
+                    8 + font.text_width(info1) + w // 2,
+                    22,
+                    last_x + w // 2,
+                    last_y - 1,
+                    10,
+                )
 
         return g
 
