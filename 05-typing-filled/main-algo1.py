@@ -91,6 +91,12 @@ class Lines:
                 line.append(word)
                 break
 
+    def remove(self, word):
+        for line in self.lines:
+            if word in line:
+                line.words.remove(word)
+                break
+
 
 def draw_text_with_border(x, y, s, col, bcol, font):
     for dx in range(-1, 2):
@@ -138,11 +144,11 @@ class App:
             except StopIteration:
                 self.current_pos += 1
                 self.state = State(-1, True)
-        # elif pyxel.btnp(pyxel.KEY_LEFT, 10, 2) and self.current_pos > 0:
-        #     # 左で前の状態に戻る
-        #     self.current_pos -= 1
-        #     self.state = (-1, True)
-        #     # FIXME: linesをロールバックしないといけない
+        elif pyxel.btnp(pyxel.KEY_LEFT, 10, 2) and self.current_pos >= 0:
+            # 左で前の状態に戻る
+            self.state = State(-1, True)
+            self.current_pos = max(self.current_pos - 1, 0)
+            self.lines.remove(self.words[self.current_pos])
 
     def try_push_word(self, word):
         for i, line in enumerate(self.lines):
