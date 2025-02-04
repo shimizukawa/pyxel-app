@@ -25,6 +25,18 @@ class FPS:
             len(self.frame_times) / (self.frame_times[-1] - self.frame_times[0])
         )
 
+    def __rmul__(self, other):
+        return self.value * other
+
+    def __rtruediv__(self, other):
+        return other / self.value
+
+    def __floordiv__(self, other):
+        return self.value // other
+
+    def __str__(self):
+        return str(self.value)
+
 
 class App:
     def __init__(self, width=320, height=180, word="Hello, Pyxel!"):
@@ -64,7 +76,7 @@ class App:
         img.rect(20, 20, self.width - 40, self.height - 40, 0)
         img.rectb(20, 20, self.width - 40, self.height - 40, 2)
         img.text(30, 30, "Diagonal Scroll", 7)
-        img.text(5, self.height - 10, f"FPS: {self.fps.value}", 13)
+        img.text(5, self.height - 10, f"FPS: {self.fps}", 13)
         return img
 
     def draw(self):

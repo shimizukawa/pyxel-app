@@ -35,6 +35,18 @@ class FPS:
             len(self.frame_times) / (self.frame_times[-1] - self.frame_times[0])
         )
 
+    def __rmul__(self, other):
+        return self.value * other
+
+    def __rtruediv__(self, other):
+        return other / self.value
+
+    def __floordiv__(self, other):
+        return self.value // other
+
+    def __str__(self):
+        return str(self.value)
+
 
 class ChildApp:
     def __init__(self, width=320, height=180, word="Hello, Pyxel!"):
@@ -74,7 +86,7 @@ class ChildApp:
         img.rect(20, 20, self.width - 40, self.height - 40, 0)
         img.rectb(20, 20, self.width - 40, self.height - 40, 2)
         img.text(30, 30, "Diagonal Scroll", 7)
-        img.text(5, self.height - 10, f"FPS: {self.fps.value}", 13)
+        img.text(5, self.height - 10, f"FPS: {self.fps}", 13)
         return img
 
     def draw(self):
@@ -145,7 +157,7 @@ class ParentApp:
         pyxel.text(5, 15, f"F1: {'Pause' if self.move_parent else 'Move'} Parent", 7)
         pyxel.rect(4, 24, 65, 7, 11 if self.move_child else 8)
         pyxel.text(5, 25, f"F2: {'Pause' if self.move_child else 'Move'} Child", 7)
-        pyxel.text(5, pyxel.height - 10, f"FPS: {self.fps.value}", 13)
+        pyxel.text(5, pyxel.height - 10, f"FPS: {self.fps}", 13)
 
 
 if __name__ == "__main__":

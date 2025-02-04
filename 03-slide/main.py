@@ -72,13 +72,39 @@ class Slide:
     level: str
 
 
+class FPS:
+    def __init__(self):
+        self.value = 0
+        self.frame_times = [time.time()] * 30
+
+    def calc(self):
+        self.frame_times.append(time.time())
+        self.frame_times.pop(0)
+        # 10フレームごとにFPSを計算
+        if pyxel.frame_count % 10:
+            return
+        self.value = int(
+            len(self.frame_times) / (self.frame_times[-1] - self.frame_times[0])
+        )
+
+    def __rmul__(self, other):
+        return self.value * other
+
+    def __rtruediv__(self, other):
+        return other / self.value
+
+    def __floordiv__(self, other):
+        return self.value // other
+
+    def __str__(self):
+        return str(self.value)
+
 class App:
     def __init__(self):
         self.first_pages_in_section = []  # セクションの開始ページ
         self.slides = self.load_slides(MD_FILENAME)
         self._page = 0
-        self.frame_times = [time.time()] * 30
-        self.fps = 0
+        self.fps = FPS()
         self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
         self.child_apps = {}  # page: app
         pyxel.init(WIDTH + WINDOW_PADDING * 2, HEIGHT + WINDOW_PADDING, title=TITLE)
@@ -174,7 +200,7 @@ class App:
         self.page = self.first_pages_in_section[sec]
 
     def update(self):
-        self.calc_fps()
+        self.fps.calc()
 
         if self.page in self.child_apps:
             self.child_apps[self.page].update()
@@ -201,16 +227,6 @@ class App:
                 self.go_backward()
             else:
                 self.go_forward()
-
-    def calc_fps(self):
-        self.frame_times.append(time.time())
-        self.frame_times.pop(0)
-        # 10フレームごとにFPSを計算
-        if pyxel.frame_count % 10:
-            return
-        self.fps = int(
-            len(self.frame_times) / (self.frame_times[-1] - self.frame_times[0])
-        )
 
     def draw(self):
         pyxel.cls(7)
