@@ -99,6 +99,7 @@ class FPS:
     def __str__(self):
         return str(self.value)
 
+
 class App:
     def __init__(self):
         self.first_pages_in_section = []  # セクションの開始ページ
@@ -107,7 +108,13 @@ class App:
         self.fps = FPS()
         self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
         self.child_apps = {}  # page: app
-        pyxel.init(WIDTH + WINDOW_PADDING * 2, HEIGHT + WINDOW_PADDING, title=TITLE)
+        self.child_is_updated = False
+        pyxel.init(
+            WIDTH + WINDOW_PADDING * 2,
+            HEIGHT + WINDOW_PADDING,
+            title=TITLE,
+            quit_key=pyxel.KEY_NONE,
+        )
         self.renderd_page_bank = [
             (None, pyxel.Image(WIDTH, HEIGHT)),
             (None, pyxel.Image(WIDTH, HEIGHT)),
@@ -148,7 +155,8 @@ class App:
         # ファイル名が .py の前提で読み込む
         child = __import__(filename[:-3])
         a = self.child_apps[self.page] = child.App(width, height)
-        a.__x = x
+        # x 座標は、左パディングのみ考慮
+        a.__x = max((pyxel.width - width) // 2, WINDOW_PADDING)
         a.__y = y
 
     @property
@@ -199,11 +207,33 @@ class App:
         sec = max(self.slides[self.page].sec - 1, 0)
         self.page = self.first_pages_in_section[sec]
 
+    def update_child(self):
+        """子アプリの更新
+
+        更新条件
+        - 子アプリのあるページを表示中
+        - transition中でない
+        - マウスが子アプリ内にある
+        """
+        if self.page not in self.child_apps:
+            return False
+        if self.in_transition[0] > 0:
+            return False
+
+        a = self.child_apps[self.page]
+        if (a.__x <= pyxel.mouse_x < a.width + a.__x) and (
+            a.__y <= pyxel.mouse_y < a.height + a.__y
+        ):
+            a.update()
+            return True
+
+        return False
+
     def update(self):
         self.fps.calc()
-
-        if self.page in self.child_apps:
-            self.child_apps[self.page].update()
+        self.child_is_updated = self.update_child()
+        if self.child_is_updated:
+            return
 
         if pyxel.btnp(pyxel.KEY_Q):
             pyxel.quit()
@@ -299,11 +329,7 @@ class App:
             pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, WIDTH, HEIGHT)
 
     def blt_child(self):
-        """子アプリのオーバーレイ
-
-        x座標は、左パディングのみ考慮
-        y座標は、スライドのfigure directiveのy座標を考慮
-        """
+        """子アプリのオーバーレイ"""
         if self.page not in self.child_apps:
             return
         if self.in_transition[0] > 0:
@@ -312,8 +338,11 @@ class App:
         a = self.child_apps[self.page]
         g = a.render()
         x = max((pyxel.width - g.width) // 2, WINDOW_PADDING)
+        x = WINDOW_PADDING + a.__x
         y = WINDOW_PADDING + a.__y
         pyxel.blt(x, y, g, 0, 0, g.width, g.height)
+        if self.child_is_updated:
+            pyxel.rectb(x, y, g.width, g.height, 8)
 
     def draw_nav(self):
         if (
@@ -653,7 +682,7 @@ class Visitor:
                     break
 
         if args.endswith(".py"):
-            self.app.load_child(self.x, self.y, 200, 150, args)
+            self.app.load_child(self.x, self.y, 320, 180, args)
             return
 
         if args.endswith((".png", ".jpg")):
