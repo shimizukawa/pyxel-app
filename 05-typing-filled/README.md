@@ -15,7 +15,7 @@ uv run main.py
 - 文字入力: キーボードの A ~ Z
 - 終了: ESC
 
-### main-algo1.py: 単語詰め込みアルゴリズム解説用アプリ 
+### main-algo1.py: 単語詰め込みアルゴリズム解説用アプリ 1
 
 ```shell
 uv run main-algo1.py
@@ -23,5 +23,18 @@ uv run main-algo1.py
 
 操作
 
-- スペース, 右キー: 処理を進める
+- 右キー、スペース: 処理を進める
+- 左キー: 処理を戻す
+- 終了: ESC
+
+### main-algo2.py: 単語詰め込みアルゴリズム解説用アプリ 2
+
+```shell
+uv run main-algo2.py
+```
+
+操作
+
+- 右キー、スペース: 処理を進める
+- 左キー: 処理を戻す
 - 終了: ESC
