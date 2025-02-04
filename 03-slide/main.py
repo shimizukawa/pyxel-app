@@ -475,9 +475,9 @@ class Visitor:
     @property
     def list_marker(self):
         list_level = len(self.list_stack)
-        list_type = self.list_stack[-1]
+        list_type, ordered_num = self.list_stack[-1]
         if list_type == "ordered":
-            return f"{self.list_ordered_num}. "
+            return f"{ordered_num}. "
         elif list_type == "bullet":
             return LIST_MARKERS[list_level]  # 深いとエラーになるけど実質問題ない
 
@@ -580,7 +580,7 @@ class Visitor:
 
     def visit_bullet_list_open(self, token):
         self._indent(WINDOW_PADDING)
-        self.list_stack.append("bullet")
+        self.list_stack.append(("bullet", 1))
 
     def visit_bullet_list_close(self, token):
         self._dedent()
@@ -588,13 +588,11 @@ class Visitor:
 
     def visit_ordered_list_open(self, token):
         self._indent(WINDOW_PADDING)
-        self.list_stack.append("ordered")
-        self.list_ordered_num = 1
+        self.list_stack.append(("ordered", 1))
 
     def visit_ordered_list_close(self, token):
         self._dedent()
         self.list_stack.pop()
-        self.list_ordered_num = None
 
     def visit_list_item_open(self, token):
         x = self.x
@@ -604,8 +602,8 @@ class Visitor:
 
     def visit_list_item_close(self, token):
         self._dedent()
-        if self.list_ordered_num:
-            self.list_ordered_num += 1
+        list_type, ordered_num = self.list_stack.pop()
+        self.list_stack.append((list_type, ordered_num + 1))
 
     def visit_paragraph_open(self, token):
         pass
@@ -614,7 +612,7 @@ class Visitor:
         self._crlf(margin=True)
 
     def visit_em_open(self, token):
-        self.color_stack.append((3, -1))
+        self.color_stack.append((9, -1))
         self.font_stack.append("em")
 
     def visit_em_close(self, token):
