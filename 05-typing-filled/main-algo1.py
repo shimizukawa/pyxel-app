@@ -106,6 +106,12 @@ def draw_text_with_border(x, y, s, col, bcol, font):
     pyxel.text(x, y, s, col, font)
 
 
+@dataclasses.dataclass(frozen=True)
+class State:
+    line: int
+    result: bool | None  # None: trying, False: failed, True: success
+
+
 class App:
     def __init__(self):
         pyxel.init(WIDTH, HEIGHT, title=TITLE)
@@ -114,7 +120,7 @@ class App:
         self.words = load_words()
         self.current_pos = 0
         self.lines = Lines()
-        self.state = (-1, True)
+        self.state = State(-1, True)
         self.trying = None
         pyxel.run(self.update, self.draw)
 
@@ -124,14 +130,14 @@ class App:
 
         if pyxel.btnp(pyxel.KEY_SPACE, 10, 2) or pyxel.btnp(pyxel.KEY_RIGHT, 10, 2):
             # 右かスペースで次の状態を開始
-            if self.state[1]:
+            if self.state.result:
                 word = self.words[self.current_pos]
                 self.trying = self.try_push_word(word)
             try:
                 self.state = next(self.trying)
             except StopIteration:
                 self.current_pos += 1
-                self.state = (-1, True)
+                self.state = State(-1, True)
         # elif pyxel.btnp(pyxel.KEY_LEFT, 10, 2) and self.current_pos > 0:
         #     # 左で前の状態に戻る
         #     self.current_pos -= 1
@@ -141,13 +147,13 @@ class App:
     def try_push_word(self, word):
         for i, line in enumerate(self.lines):
             if line.can_add(word):
-                yield (i, None)
+                yield State(i, None)
                 line.append(word)
                 self.current_pos += 1
-                yield (i, True)
+                yield State(i, True)
                 break
             else:
-                yield (i, False)
+                yield State(i, False)
 
     def render(self):
         self.img.cls(1)
@@ -169,16 +175,16 @@ class App:
             y = 50 + i * 14
             color = 5 if line.is_full() else 3
             self.img.text(LEFT_MARGIN, y, text, color, font)
-            if self.state[0] == i:
-                self.img.rectb(
-                    LEFT_MARGIN - 1, y - 1, CHAR_PER_LINE * CHAR_WIDTH + 1, 16, 13
-                )
+            self.img.rectb(
+                LEFT_MARGIN - 2, y - 1, CHAR_PER_LINE * CHAR_WIDTH + 2, 15, 5
+            )
+            if self.state.line == i:
                 w0 = font.text_width(text)
-                if self.state[1] is None:  # None
+                if self.state.result is None:  # trying
                     self.img.text(LEFT_MARGIN + w0, y, word, 10, font)
-                elif not self.state[1]:  # False
+                elif not self.state.result:  # failed
                     self.img.text(LEFT_MARGIN + w0, y, word, 8, font)
-                if not self.state[1]:  # None or False
+                if not self.state.result:  # trying or failed
                     self.img.line(
                         8 + font.text_width(info1) + w // 2,
                         22,
@@ -186,6 +192,10 @@ class App:
                         y - 1,
                         10,
                     )
+
+        if self.state.line >= 0:
+            y = 50 + self.state.line * 14 - 1
+            self.img.rectb(LEFT_MARGIN - 2, y, CHAR_PER_LINE * CHAR_WIDTH + 2, 15, 13)
 
     def draw(self):
         self.render()
