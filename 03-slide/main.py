@@ -15,6 +15,7 @@
 
 import asyncio
 import dataclasses
+import re
 import time
 from pathlib import Path
 
@@ -59,6 +60,8 @@ DIRECTION_MAP = {
     ("b", "h3"): "up",
     ("b", "h2"): "left",
 }
+
+directive_pattern = re.compile(r"^{(.+?)}\s*(.*)$")
 
 
 @dataclasses.dataclass
@@ -558,6 +561,8 @@ class Visitor:
     def visit_fence(self, token):
         hls = [self.font.text_width(line) for line in token.content.splitlines()]
         if token.info:
+            if directive_pattern.match(token.info):
+                return self._directive(token)
             print("fence info", token.info)
         if not hls:
             print("fence: No content")
@@ -572,6 +577,43 @@ class Visitor:
             self._text(line)
             self._crlf()
         self._dedent()
+
+    def _directive(self, token):
+        """ディレクティブ処理
+
+        ```{directive} args
+        ```
+
+        - `{figure}`: 画像表示
+          - args = "filename.*"
+          - `.py` ではアプリ読み込み
+          - `.png`, `.jpg` では画像読み込み
+          - `.*` では上記の順番にトライ
+        """
+        m = directive_pattern.match(token.info)
+        directive, args = m.groups()
+        if directive != "figure":
+            print("unsupported directive", directive)
+            return
+
+        if args.endswith(".*"):
+            args = args[:-2]
+            for ext in [".py", ".png", ".jpg"]:
+                path = Path(args + ext)
+                if path.exists():
+                    args = path.name
+                    break
+
+        if args.endswith(".py"):
+            self.img.rect(self.x, self.y, 100, 15, 0)
+            self.img.text(self.x, self.y, args, 7, font_default)
+            return
+
+        if args.endswith((".png", ".jpg")):
+            self.img.load(self.x, self.y, args)
+            return
+
+        print("Not Found.", args)
 
     def visit_hardbreak(self, token):
         self._crlf()
