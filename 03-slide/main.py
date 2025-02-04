@@ -80,6 +80,7 @@ class App:
         self.frame_times = [time.time()] * 30
         self.fps = 0
         self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
+        self.child_apps = {}  # page: app
         pyxel.init(WIDTH + WINDOW_PADDING * 2, HEIGHT + WINDOW_PADDING, title=TITLE)
         self.renderd_page_bank = [
             (None, pyxel.Image(WIDTH, HEIGHT)),
@@ -116,6 +117,13 @@ class App:
             if slide.level in ("h1", "h2"):
                 self.first_pages_in_section.append(i)
         return slides
+
+    def load_child(self, x, y, width, height, filename):
+        # ファイル名が .py の前提で読み込む
+        child = __import__(filename[:-3])
+        a = self.child_apps[self.page] = child.App(width, height)
+        a.__x = x
+        a.__y = y
 
     @property
     def page(self):
@@ -168,6 +176,9 @@ class App:
     def update(self):
         self.calc_fps()
 
+        if self.page in self.child_apps:
+            self.child_apps[self.page].update()
+
         if pyxel.btnp(pyxel.KEY_Q):
             pyxel.quit()
 
@@ -204,6 +215,8 @@ class App:
     def draw(self):
         pyxel.cls(7)
         self.blt_slide()
+        # 子アプリの描画
+        self.blt_child()
         # Navigation
         self.draw_nav()
         # FPSを表示
@@ -258,14 +271,33 @@ class App:
                 new_y = WINDOW_PADDING
             new_img = self.get_rendered_img(self.page)
             old_img = self.get_rendered_img(old_page)
+            # old
             pyxel.dither(rate)
             pyxel.blt(old_x, old_y, old_img, 0, 0, WIDTH, HEIGHT, 7)
+            # new
             pyxel.dither(1 - rate)
             pyxel.blt(new_x, new_y, new_img, 0, 0, WIDTH, HEIGHT, 7)
             pyxel.dither(1)
         else:
             img = self.get_rendered_img(self.page)
             pyxel.blt(WINDOW_PADDING, WINDOW_PADDING, img, 0, 0, WIDTH, HEIGHT)
+
+    def blt_child(self):
+        """子アプリのオーバーレイ
+
+        x座標は、左パディングのみ考慮
+        y座標は、スライドのfigure directiveのy座標を考慮
+        """
+        if self.page not in self.child_apps:
+            return
+        if self.in_transition[0] > 0:
+            return
+
+        a = self.child_apps[self.page]
+        g = a.render()
+        x = max((pyxel.width - g.width) // 2, WINDOW_PADDING)
+        y = WINDOW_PADDING + a.__y
+        pyxel.blt(x, y, g, 0, 0, g.width, g.height)
 
     def draw_nav(self):
         if (
@@ -605,8 +637,7 @@ class Visitor:
                     break
 
         if args.endswith(".py"):
-            self.img.rect(self.x, self.y, 100, 15, 0)
-            self.img.text(self.x, self.y, args, 7, font_default)
+            self.app.load_child(self.x, self.y, 200, 150, args)
             return
 
         if args.endswith((".png", ".jpg")):
