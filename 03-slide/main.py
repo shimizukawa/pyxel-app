@@ -151,10 +151,12 @@ class App:
                 self.first_pages_in_section.append(i)
         return slides
 
-    def load_child(self, x, y, width, height, filename):
+    def load_child(
+        self, page: int, x: int, y: int, width: int, height: int, filename: str
+    ):
         # ファイル名が .py の前提で読み込む
         child = __import__(filename[:-3])
-        a = self.child_apps[self.page] = child.App(width, height)
+        a = self.child_apps[page] = child.App(width, height)
         # x 座標は、左パディングのみ考慮
         a.__x = max((pyxel.width - width) // 2, WINDOW_PADDING)
         a.__y = y
@@ -268,19 +270,17 @@ class App:
         # FPSを表示
         pyxel.text(5, pyxel.height - 10, f"FPS: {self.fps}", 13)
 
-    def render_page(self, page_num: int) -> pyxel.Image:
-        """render page (page_num) to old image bank"""
-        if page_num >= len(self.slides):
-            return
+    def render_page(self, page: int) -> pyxel.Image:
+        """render page to old image bank"""
         for p, img in self.renderd_page_bank:
-            if p == page_num:
+            if p == page:
                 return img
 
         _, img = self.renderd_page_bank.pop(0)
         img.rect(0, 0, WIDTH, HEIGHT, 7)
-        visitor = Visitor(self, img)
-        visitor.walk(self.slides[page_num].tokens)
-        self.renderd_page_bank.append((page_num, img))
+        visitor = Visitor(self, page, img)
+        visitor.walk(self.slides[page].tokens)
+        self.renderd_page_bank.append((page, img))
         return img
 
     def get_rendered_img(self, page: int):
@@ -443,9 +443,12 @@ def use_color(fg: int, bg: int):
 
 
 class Visitor:
-    def __init__(self, app, img):
+    list_stack: list[tuple[str, int]]
+
+    def __init__(self, app: App, page: int, img: pyxel.Image):
         self.app = app
         self.img = img
+        self.page = page
         self.x = 0
         self.y = 0
         self.indent_stack = [self.x]
@@ -454,7 +457,6 @@ class Visitor:
         self.section_level = 0
         self.align = "left"
         self.list_stack = []  # 箇条書きのマーク用
-        self.list_ordered_num = None  # 番号付き箇条書きの場合は1以上の数値
 
     @property
     def color(self):
@@ -684,7 +686,7 @@ class Visitor:
                     break
 
         if args.endswith(".py"):
-            self.app.load_child(self.x, self.y, 320, 180, args)
+            self.app.load_child(self.page, self.x, self.y, 320, 180, args)
             return
 
         if args.endswith((".png", ".jpg")):
