@@ -207,7 +207,7 @@ class App:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.img = pyxel.Image(WIDTH, HEIGHT)
+        self.img = pyxel.Image(width, height)
         pyxel.load("assets/res.pyxres")
         self.current_pos = 0
         self.state = State(-1, "", Status.start)
