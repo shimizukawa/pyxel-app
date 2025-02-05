@@ -369,73 +369,28 @@ class App:
             pyxel.rectb(x, y, int(w * s1), int(h * s1), 8)
 
     def draw_nav(self):
+        if self.child_is_updated:
+            return
+        w, h = pyxel.width, pyxel.height
         if (
             self.page + 1 not in self.first_pages_in_section
             and self.page != len(self.slides) - 1
         ):
             # セクション内の最後のページではない
-            pyxel.line(
-                pyxel.width - 20,
-                pyxel.height - 10,
-                pyxel.width - 15,
-                pyxel.height - 15,
-                5,
-            )
-            pyxel.line(
-                pyxel.width - 20,
-                pyxel.height - 10,
-                pyxel.width - 25,
-                pyxel.height - 15,
-                5,
-            )
+            pyxel.line(w - 20, h - 10, w - 15, h - 15, 5)
+            pyxel.line(w - 20, h - 10, w - 25, h - 15, 5)
         if self.page < self.first_pages_in_section[-1]:
             # 最後のセクションではない
-            pyxel.line(
-                pyxel.width - 5,
-                pyxel.height - 25,
-                pyxel.width - 10,
-                pyxel.height - 20,
-                5,
-            )
-            pyxel.line(
-                pyxel.width - 5,
-                pyxel.height - 25,
-                pyxel.width - 10,
-                pyxel.height - 30,
-                5,
-            )
+            pyxel.line(w - 5, h - 25, w - 10, h - 20, 5)
+            pyxel.line(w - 5, h - 25, w - 10, h - 30, 5)
         if self.page not in self.first_pages_in_section:
             # セクション内の最初のページではない
-            pyxel.line(
-                pyxel.width - 20,
-                pyxel.height - 40,
-                pyxel.width - 15,
-                pyxel.height - 35,
-                6,
-            )
-            pyxel.line(
-                pyxel.width - 20,
-                pyxel.height - 40,
-                pyxel.width - 25,
-                pyxel.height - 35,
-                6,
-            )
+            pyxel.line(w - 20, h - 40, w - 15, h - 35, 6)
+            pyxel.line(w - 20, h - 40, w - 25, h - 35, 6)
         if self.page != 0:
             # 最初のセクションではない
-            pyxel.line(
-                pyxel.width - 35,
-                pyxel.height - 25,
-                pyxel.width - 30,
-                pyxel.height - 20,
-                6,
-            )
-            pyxel.line(
-                pyxel.width - 35,
-                pyxel.height - 25,
-                pyxel.width - 30,
-                pyxel.height - 30,
-                6,
-            )
+            pyxel.line(w - 35, h - 25, w - 30, h - 20, 6)
+            pyxel.line(w - 35, h - 25, w - 30, h - 30, 6)
 
 
 def use_font(font: str):
