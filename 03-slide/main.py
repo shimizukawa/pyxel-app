@@ -419,6 +419,7 @@ def use_color(fg: int, bg: int):
 
 class Visitor:
     list_stack: list[tuple[str, int]]
+    color_stack: list[tuple[int, int, dict]]
 
     def __init__(self, app: App, page: int, img: pyxel.Image):
         self.app = app
@@ -428,7 +429,7 @@ class Visitor:
         self.y = 0
         self.indent_stack = [self.x]
         self.font_stack = ["default"]
-        self.color_stack = [(0, -1)]
+        self.color_stack = [(0, -1, {})]  # fg, bg, opt
         self.section_level = 0
         self.align = "left"
         self.list_stack = []  # 箇条書きのマーク用
@@ -606,6 +607,14 @@ class Visitor:
 
     def visit_inline(self, token):
         pass
+
+    def visit_link_open(self, token):
+        self.color_stack.append((5, -1, {"xy": (self.x, self.y)}))
+
+    def visit_link_close(self, token):
+        obj = self.color_stack.pop()
+        x, y = obj[2]["xy"]
+        self.img.line(x, y + self.font_height, self.x, y + self.font_height, obj[0])
 
     @use_font("literal")
     @use_color(1, 6)
