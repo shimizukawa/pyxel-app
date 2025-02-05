@@ -41,7 +41,8 @@
 
 ### コードブロック
 
-```
+直前の1行
+```python
 import this
 
 def hello(text):
@@ -49,6 +50,7 @@ def hello(text):
 
 hello("World")
 ```
+直後の1行
 
 ## メディア
 

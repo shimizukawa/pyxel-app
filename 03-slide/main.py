@@ -632,15 +632,17 @@ class Visitor:
         if not hls:
             print("fence: No content")
             return
-        w = DEFAULT_LINE_HEIGHT + max(hls)
-        h = DEFAULT_LINE_HEIGHT + len(hls) * DEFAULT_LINE_HEIGHT
+        lh = self.font.text_width("あ")  # あの幅を文字の高さとする
+        w = lh + max(hls)
+        h = lh + len(hls) * lh  # 余白用に1行多く確保
         self.img.rect(self.x, self.y, w, h, 0)
 
         self._indent(WINDOW_PADDING)
-        self.y += WINDOW_PADDING
+        self.y += DEFAULT_LINE_HEIGHT // 2
         for line in token.content.splitlines():
             self._text(line)
             self._crlf()
+        self.y += DEFAULT_LINE_HEIGHT // 2
         self._dedent()
 
     def _directive(self, token):
