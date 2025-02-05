@@ -9,11 +9,13 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #     "markdown-it-py",
+#     "pygments",
 #     "pyxel",
 # ]
 # ///
 
 import asyncio
+import contextlib
 import dataclasses
 import re
 import time
@@ -417,6 +419,13 @@ def use_color(fg: int, bg: int):
     return decorator
 
 
+@contextlib.contextmanager
+def with_color(self, fg: int, bg: int):
+    self.color_stack.append((fg, bg))
+    yield
+    self.color_stack.pop()
+
+
 class Visitor:
     list_stack: list[tuple[str, int]]
     color_stack: list[tuple[int, int, dict]]
@@ -624,24 +633,29 @@ class Visitor:
     @use_font("literal")
     @use_color(7, -1)
     def visit_fence(self, token):
-        hls = [self.font.text_width(line) for line in token.content.splitlines()]
-        if token.info:
-            if directive_pattern.match(token.info):
-                return self._directive(token)
-            print("fence info", token.info)
-        if not hls:
-            print("fence: No content")
-            return
+        if token.info and directive_pattern.match(token.info):
+            return self._directive(token)
+
+        content = token.content
+
+        # 背景描画
+        hls = [self.font.text_width(line) for line in content.splitlines()]
         lh = self.font.text_width("あ")  # あの幅を文字の高さとする
         w = lh + max(hls)
         h = lh + len(hls) * lh  # 余白用に1行多く確保
         self.img.rect(self.x, self.y, w, h, 0)
 
+        # コンテンツ描画
         self._indent(WINDOW_PADDING)
-        self.y += DEFAULT_LINE_HEIGHT // 2
-        for line in token.content.splitlines():
-            self._text(line)
-            self._crlf()
+        self.y += lh // 2
+
+        if token.info:
+            self._highlight(token)
+        else:
+            for line in content.splitlines():
+                self._text(line)
+                self._crlf()
+
         self.y += DEFAULT_LINE_HEIGHT // 2
         self._dedent()
 
@@ -704,6 +718,33 @@ class Visitor:
 
         print("Not Found.", args)
 
+    def _highlight(self, token):
+        import pygments
+        from pygments.formatters import RawTokenFormatter
+        from pygments.lexers import get_lexer_by_name
+
+        lexer = get_lexer_by_name(token.info, stripall=True)
+        formatter = RawTokenFormatter()
+        hl = pygments.highlight(token.content, lexer, formatter).decode("utf-8")
+
+        for line in hl.splitlines():
+            token, value = line.split("\t")
+            value = value.strip("'")
+            match token:
+                case "Token.Text.Whitespace" if value == "\\n":
+                    self._crlf()
+                case s if s.startswith("Token.Keyword"):
+                    with with_color(self, 6, -1):
+                        self._text(value)
+                case "Token.Operator.Word":
+                    with with_color(self, 2, -1):
+                        self._text(value)
+                case "Token.Literal.String.Double":
+                    with with_color(self, 10, -1):
+                        self._text(value)
+                case _:
+                    self._text(value)
+
     def visit_hardbreak(self, token):
         self._crlf()
 
@@ -724,6 +765,7 @@ async def main():
     if micropip:
         print("Installing ...")
         await micropip.install("markdown-it-py")
+        await micropip.install("pygments")
         print("installed successfully")
 
     App()
