@@ -62,6 +62,7 @@ DIRECTION_MAP = {
 }
 
 directive_pattern = re.compile(r"^{(.+?)}\s*(.*)$")
+directive_option_pattern = re.compile(r":(\w+): (.+)", re.MULTILINE)
 
 
 @dataclasses.dataclass
@@ -120,6 +121,7 @@ class App:
             (None, pyxel.Image(WIDTH, HEIGHT)),
         ]
         pyxel.mouse(True)
+        self.colors = pyxel.colors.to_list()  # 親アプリ用のcolorsをバックアップ
         self.render_page(0)
 
         # run forever
@@ -152,14 +154,27 @@ class App:
         return slides
 
     def load_child(
-        self, page: int, x: int, y: int, width: int, height: int, filename: str
+        self,
+        page: int,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        filename: str,
+        scale: float | None,
     ):
         # ファイル名が .py の前提で読み込む
         child = __import__(filename[:-3])
+        # scale処理
+        if scale is not None:
+            width = int(width / scale)
+            height = int(height / scale)
         a = self.child_apps[page] = child.App(width, height)
         # x 座標は、左パディングのみ考慮
         a.__x = max((pyxel.width - width) // 2, WINDOW_PADDING)
         a.__y = y
+        a.__colors = pyxel.colors.to_list()  # colorsバックアップ
+        a.__scale = scale
 
     @property
     def page(self):
@@ -335,18 +350,23 @@ class App:
     def blt_child(self):
         """子アプリのオーバーレイ"""
         if self.page not in self.child_apps:
+            pyxel.colors.from_list(self.colors)  # 親アプリ用のcolorsに切替
             return
         if self.in_transition[0] > 0:
             return
 
         a = self.child_apps[self.page]
+        pyxel.colors.from_list(a.__colors)  # 子アプリ用のcolorsに切替
         g = a.render()
         x = max((pyxel.width - g.width) // 2, WINDOW_PADDING)
         x = WINDOW_PADDING + a.__x
         y = WINDOW_PADDING + a.__y
-        pyxel.blt(x, y, g, 0, 0, g.width, g.height)
+        s1 = a.__scale or 1
+        s2 = (1 - s1) / 2
+        w, h = g.width, g.height
+        pyxel.blt(x - int(w * s2), y - int(h * s2), g, 0, 0, w, h, scale=a.__scale)
         if self.child_is_updated:
-            pyxel.rectb(x, y, g.width, g.height, 8)
+            pyxel.rectb(x, y, int(w * s1), int(h * s1), 8)
 
     def draw_nav(self):
         if (
@@ -663,19 +683,25 @@ class Visitor:
         """ディレクティブ処理
 
         ```{directive} args
+        :opt1: value1
+
+        content
         ```
 
         - `{figure}`: 画像表示
           - args = "filename.*"
-          - `.py` ではアプリ読み込み
-          - `.png`, `.jpg` では画像読み込み
-          - `.*` では上記の順番にトライ
+            - `.py` ではアプリ読み込み
+            - `.png`, `.jpg` では画像読み込み
+            - `.*` では上記の順番にトライ
+          - options:
+            - `scale`: 50 （50% 表記は非対応）
         """
         m = directive_pattern.match(token.info)
         directive, args = m.groups()
         if directive != "figure":
             print("unsupported directive", directive)
             return
+        options = dict(directive_option_pattern.findall(token.content))
 
         if args.endswith(".*"):
             args = args[:-2]
@@ -686,11 +712,28 @@ class Visitor:
                     break
 
         if args.endswith(".py"):
-            self.app.load_child(self.page, self.x, self.y, 320, 180, args)
+            s = int(options["scale"]) / 100 if "scale" in options else None
+            self.app.load_child(self.page, self.x, self.y, 355, 200, args, s)
             return
 
         if args.endswith((".png", ".jpg")):
-            self.img.load(self.x, self.y, args)
+            p = pyxel.Image.from_image(args)
+            if "scale" in options:
+                s = int(options["scale"]) / 100
+            else:
+                s = self.img.width / max(p.width, self.img.width)
+            x, y, w, h = self.x, self.y, p.width, p.height
+            lm = max(int(self.img.width - w * s) // 2, 0)
+            self.img.blt(
+                lm + x - int(w * (1 - s) / 2),
+                y - int(h * (1 - s) / 2),
+                p,
+                0,
+                0,
+                w,
+                h,
+                scale=s,
+            )
             return
 
         print("Not Found.", args)

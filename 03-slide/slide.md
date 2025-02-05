@@ -49,13 +49,13 @@ def hello(text):
 hello("World")
 ```
 
-## セクション2
+## メディア
 
 本文はセンタリング
 
 ### メディア埋め込み1
 
-拡張子まで指定
+拡張子まで指定: `{figure} diagonal.png`
 
 ```{figure} diagonal.png
 ```
@@ -66,3 +66,7 @@ hello("World")
 
 ```{figure} diagonal.*
 ```
+
+## おしまい
+
+ありがとうございました。
