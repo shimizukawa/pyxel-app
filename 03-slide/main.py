@@ -39,7 +39,7 @@ KEY_REPEAT = 1  # for 30fps
 KEY_HOLD = 15  # for 30fps
 
 # The Font class only supports BDF format fonts
-font_title = pyxel.Font("assets/b24.bdf")
+font_title = pyxel.Font("assets/b24_b.bdf")
 font_pagetitle = pyxel.Font("assets/b16_b.bdf")
 font_default = pyxel.Font("assets/b12.bdf")
 font_bold = pyxel.Font("assets/b12_b.bdf")
@@ -105,29 +105,32 @@ class FPS:
 
 class App:
     def __init__(self):
-        self.first_pages_in_section = []  # セクションの開始ページ
-        self.slides = self.load_slides(MD_FILENAME)
-        self._page = 0
         self.fps = FPS()
-        self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
-        self.child_apps = {}  # page: app
-        self.child_is_updated = False
         pyxel.init(
             WIDTH + WINDOW_PADDING * 2,
             HEIGHT + WINDOW_PADDING,
             title=TITLE,
             quit_key=pyxel.KEY_NONE,
         )
+        self.colors = pyxel.colors.to_list()  # 親アプリ用のcolorsをバックアップ
+        self._page = 0
+        pyxel.mouse(True)
+        self.reset()
+
+        # run forever
+        pyxel.run(self.update, self.draw)
+
+    def reset(self):
         self.renderd_page_bank = [
             (None, pyxel.Image(WIDTH, HEIGHT)),
             (None, pyxel.Image(WIDTH, HEIGHT)),
         ]
-        pyxel.mouse(True)
-        self.colors = pyxel.colors.to_list()  # 親アプリ用のcolorsをバックアップ
-        self.render_page(0)
-
-        # run forever
-        pyxel.run(self.update, self.draw)
+        self.first_pages_in_section = []  # セクションの開始ページ
+        self.slides = self.load_slides(MD_FILENAME)
+        self._page = min(self.page, len(self.slides) - 1)  # ページが減った場合
+        self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
+        self.child_apps = {}  # page: app
+        self.child_is_updated = False
 
     def load_slides(self, filepath) -> list[Slide]:
         import markdown_it
@@ -256,6 +259,9 @@ class App:
 
         if pyxel.btnp(pyxel.KEY_Q):
             pyxel.quit()
+
+        if pyxel.btnp(pyxel.KEY_R) and pyxel.btn(pyxel.KEY_CTRL):
+            self.reset()
 
         key_hold = KEY_HOLD * self.fps // 30
         key_repeat = KEY_REPEAT * self.fps // 30
