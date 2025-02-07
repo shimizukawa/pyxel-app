@@ -20,38 +20,35 @@ TILE_FLOOR = (1, 0)
 WALL_TILE_X = 4
 
 scroll_x = 0
-height = 0
+_height = 0
 player = None
+is_loose = False
+show_bb = False
 
 
 def get_tile(tile_x, tile_y):
     return pyxel.tilemaps[0].pget(tile_x, tile_y)
 
 
-def is_colliding(x, y, is_falling):
+def is_colliding(x, y, is_falling, use_loose=False):
     x1 = pyxel.floor(x) // 8
     y1 = pyxel.floor(y) // 8
     x2 = (pyxel.ceil(x) + 7) // 8
     y2 = (pyxel.ceil(y) + 7) // 8
+    if use_loose:
+        x1 = (pyxel.floor(x)+ 4) // 8
+        x2 = (pyxel.ceil(x) + 3) // 8
+
     for yi in range(y1, y2 + 1):
         for xi in range(x1, x2 + 1):
             if get_tile(xi, yi)[0] >= WALL_TILE_X:
                 return True
+    if use_loose:
+        return False
+
     if is_falling and y % 8 == 1:
         for xi in range(x1, x2 + 1):
             if get_tile(xi, y1 + 1) == TILE_FLOOR:
-                return True
-    return False
-
-
-def is_colliding_for_jump(x, y):
-    x1 = (pyxel.floor(x)+ 4) // 8
-    y1 = pyxel.floor(y) // 8
-    x2 = (pyxel.ceil(x) + 3) // 8
-    y2 = (pyxel.ceil(y) + 7) // 8
-    for yi in range(y1, y2 + 1):
-        for xi in range(x1, x2 + 1):
-            if get_tile(xi, yi)[0] >= WALL_TILE_X:
                 return True
     return False
 
@@ -61,7 +58,7 @@ def push_back(x, y, dx, dy):
         step = max(-1, min(1, dy))
         if dy > 0 and is_colliding(x, y + step, dy > 0):
             break
-        elif dy < 0 and is_colliding_for_jump(x, y + step):
+        elif dy < 0 and is_colliding(x, y + step, dy > 0, use_loose=is_loose):
             break
         y += step
         dy -= step
@@ -94,14 +91,13 @@ class Player:
             self.dx = 1 * (2 if pyxel.btn(pyxel.KEY_SHIFT) else 1)
             self.direction = 1
         self.dy = min(self.dy + 1, 3)
-        if pyxel.btnp(pyxel.KEY_SPACE) or pyxel.btnp(pyxel.GAMEPAD1_BUTTON_A):
+        if pyxel.btnp(pyxel.KEY_SPACE):
             if self.dy == 3 and not self.is_falling:  # 落下3で落ちていない状態
-                self.dy = -7
+                self.dy = -6
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
 
-        # ブロックからの押し戻し処理
-        shift_x = 0
-        if is_colliding(self.x, self.y, False):
+        # looseモードでの、ブロックハマりからの押し戻し処理
+        if is_loose and is_colliding(self.x, self.y, False):
             shift_x = round(self.x / 8) * 8  - self.x  # 近い方のタイルにずらす
             shift_x = max(-1, min(1, shift_x))  # ずらす量を-1, 0, 1に制限
             # 全てのdxについて、スクロール内で、かつ、ぶつかっていないdxがあるか
@@ -122,21 +118,23 @@ class Player:
 
         if self.x > scroll_x + SCROLL_BORDER_X:
             scroll_x = min(self.x - SCROLL_BORDER_X, 240 * 8)
-        if self.y >= height:
+        if self.y >= _height:
             game_over()
 
     def draw(self):
         u = (2 if self.is_falling else pyxel.frame_count // 3 % 2) * 8
         w = 8 if self.direction > 0 else -8
         self.img.blt(self.x, self.y, 0, u, 24, w, 8, TRANSPARENT_COLOR)
+        if show_bb:
+            self.img.rectb(self.x, self.y, 8, 8, 10)
 
 
 class App:
-    def __init__(self, width, height_):
+    def __init__(self, width, height):
         self.width = width
-        self.height = height_
-        global height
-        height = height_
+        self.height = height
+        global _height
+        _height = height
         self.img = pyxel.Image(width, height)
         pyxel.load("assets/08-jumpman.pyxres")
 
@@ -147,6 +145,11 @@ class App:
         player = Player(0, 30, self.img)
 
     def update(self):
+        global is_loose, show_bb
+        if pyxel.btnp(pyxel.KEY_1):
+            is_loose = not is_loose
+        elif pyxel.btnp(pyxel.KEY_2):
+            show_bb = not show_bb
         player.update()
 
     def render(self):
@@ -156,6 +159,8 @@ class App:
         # Draw level
         g.camera()
         g.bltm(0, 0, 0, scroll_x, 0, 128, 128, TRANSPARENT_COLOR)
+        g.text(1, 1, "1:Loose ON" if is_loose else "1:Loose OFF", 7 if is_loose else 5)
+        g.text(60, 1, "2:BBox ON" if show_bb else "2:BBox OFF", 7 if show_bb else 5)
 
         # Draw characters
         g.camera(scroll_x, 0)
