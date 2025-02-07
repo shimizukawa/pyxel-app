@@ -282,11 +282,11 @@ class App:
             self.go_prev_page()
         elif pyxel.btnp(pyxel.KEY_RIGHT, key_hold, key_repeat):
             self.go_next_section()
-        elif pyxel.btnp(pyxel.KEY_H, key_hold, key_repeat):
+        elif pyxel.btnp(pyxel.KEY_L, key_hold, key_repeat):
             self.go_next_section()
         elif pyxel.btnp(pyxel.KEY_LEFT, key_hold, key_repeat):
             self.go_prev_section()
-        elif pyxel.btnp(pyxel.KEY_L, key_hold, key_repeat):
+        elif pyxel.btnp(pyxel.KEY_H, key_hold, key_repeat):
             self.go_prev_section()
         elif pyxel.btnp(pyxel.KEY_SPACE, key_hold, key_repeat):
             if pyxel.btn(pyxel.KEY_SHIFT):
