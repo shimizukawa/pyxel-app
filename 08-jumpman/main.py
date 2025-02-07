@@ -80,8 +80,10 @@ class Player:
         self.dy = 0
         self.direction = 1
         self.is_falling = False
+        self.frame_count = 0
 
     def update(self):
+        self.frame_count = pyxel.frame_count
         global scroll_x
         last_y = self.y
         if pyxel.btn(pyxel.KEY_LEFT):
@@ -122,7 +124,7 @@ class Player:
             game_over()
 
     def draw(self):
-        u = (2 if self.is_falling else pyxel.frame_count // 3 % 2) * 8
+        u = (2 if self.is_falling else self.frame_count // 3 % 2) * 8
         w = 8 if self.direction > 0 else -8
         self.img.blt(self.x, self.y, 0, u, 24, w, 8, TRANSPARENT_COLOR)
         if show_bb:
