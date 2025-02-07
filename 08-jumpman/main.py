@@ -193,7 +193,7 @@ def game_over():
 
 class ParentApp:
     def __init__(self):
-        pyxel.init(128, 96, title="Pyxel Platformer")
+        pyxel.init(128, 96, title="jumpman")
         self.child = App(width=128, height=96)
         pyxel.run(self.update, self.draw)
 
