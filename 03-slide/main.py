@@ -275,11 +275,19 @@ class App:
 
         if pyxel.btnp(pyxel.KEY_DOWN, key_hold, key_repeat):
             self.go_next_page()
+        elif pyxel.btnp(pyxel.KEY_J, key_hold, key_repeat):
+            self.go_next_page()
         elif pyxel.btnp(pyxel.KEY_UP, key_hold, key_repeat):
+            self.go_prev_page()
+        elif pyxel.btnp(pyxel.KEY_K, key_hold, key_repeat):
             self.go_prev_page()
         elif pyxel.btnp(pyxel.KEY_RIGHT, key_hold, key_repeat):
             self.go_next_section()
+        elif pyxel.btnp(pyxel.KEY_H, key_hold, key_repeat):
+            self.go_next_section()
         elif pyxel.btnp(pyxel.KEY_LEFT, key_hold, key_repeat):
+            self.go_prev_section()
+        elif pyxel.btnp(pyxel.KEY_L, key_hold, key_repeat):
             self.go_prev_section()
         elif pyxel.btnp(pyxel.KEY_SPACE, key_hold, key_repeat):
             if pyxel.btn(pyxel.KEY_SHIFT):
@@ -582,6 +590,9 @@ class Visitor:
     def visit_bullet_list_close(self, token):
         self._dedent()
         self.list_stack.pop()
+        self.y += self.font_height // 4
+        # if not self.list_stack:
+        #     self.y += self.font_height // 2
 
     def visit_ordered_list_open(self, token):
         self._indent(WINDOW_PADDING)
@@ -590,6 +601,9 @@ class Visitor:
     def visit_ordered_list_close(self, token):
         self._dedent()
         self.list_stack.pop()
+        self.y += self.font_height // 4
+        # if not self.list_stack:
+        #     self.y += self.font_height // 2
 
     def visit_list_item_open(self, token):
         x = self.x
