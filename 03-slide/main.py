@@ -175,8 +175,9 @@ class App:
             width = int(width / scale)
             height = int(height / scale)
         a = self.child_apps[page] = child.App(width, height)
+        scale = scale or 1.0
         # x 座標は、左パディングのみ考慮
-        a.__x = max((pyxel.width - width) // 2, WINDOW_PADDING)
+        a.__x = max((pyxel.width - width * scale) // 2, WINDOW_PADDING)
         a.__y = y
         a.__colors = pyxel.colors.to_list()  # colorsバックアップ
         a.__scale = scale
@@ -243,8 +244,8 @@ class App:
             return False
 
         a = self.child_apps[self.page]
-        if (a.__x <= pyxel.mouse_x < a.width + a.__x) and (
-            a.__y <= pyxel.mouse_y < a.height + a.__y
+        if (a.__x <= pyxel.mouse_x - WINDOW_PADDING < a.__scale * a.width + a.__x) and (
+            a.__y <= pyxel.mouse_y - WINDOW_PADDING < a.__scale * a.height + a.__y
         ):
             a.update()
             return True
@@ -681,6 +682,8 @@ class Visitor:
             - `.*` では上記の順番にトライ
           - options:
             - `scale`: 50 （50% 表記は非対応）
+            - `wdith`: 200 （200px 表記は非対応）
+            - `height`: 100 （100px 表記は非対応）
         """
         m = directive_pattern.match(token.info)
         directive, args = m.groups()
@@ -698,8 +701,12 @@ class Visitor:
                     break
 
         if args.endswith(".py"):
-            s = int(options["scale"]) / 100 if "scale" in options else None
-            self.app.load_child(self.page, self.x, self.y, 355, 200, args, s)
+            s = int(options.pop("scale", 100)) / 100 if "scale" in options else None
+            w = int(options.pop("width", 355))
+            h = int(options.pop("height", 200))
+            self.app.load_child(self.page, self.x, self.y, w, h, args, s)
+            if options:
+                print("Unsupported options", options)
             return
 
         if args.endswith((".png", ".jpg")):
