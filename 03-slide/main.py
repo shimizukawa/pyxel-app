@@ -44,7 +44,6 @@ font_pagetitle = pyxel.Font("assets/b16_b.bdf")
 font_default = pyxel.Font("assets/b12.bdf")
 font_bold = pyxel.Font("assets/b12_b.bdf")
 font_italic = pyxel.Font("assets/b12_i.bdf")
-font_bolditalic = pyxel.Font("assets/b12_bi.bdf")
 font_literal = pyxel.Font("assets/b12.bdf")
 FONTS = {
     "title": font_title,
