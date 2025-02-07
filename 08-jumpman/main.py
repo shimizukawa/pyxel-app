@@ -24,6 +24,7 @@ _height = 0
 player = None
 is_loose = False
 show_bb = False
+is_pback = False
 
 
 def get_tile(tile_x, tile_y):
@@ -95,11 +96,11 @@ class Player:
         self.dy = min(self.dy + 1, 3)
         if pyxel.btnp(pyxel.KEY_SPACE):
             if self.dy == 3 and not self.is_falling:  # 落下3で落ちていない状態
-                self.dy = -6
+                self.dy = -7
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
 
         # looseモードでの、ブロックハマりからの押し戻し処理
-        if is_loose and is_colliding(self.x, self.y, False):
+        if is_pback and is_colliding(self.x, self.y, False):
             shift_x = round(self.x / 8) * 8 - self.x  # 近い方のタイルにずらす
             shift_x = max(-1, min(1, shift_x))  # ずらす量を-1, 0, 1に制限
             # 全てのdxについて、スクロール内で、かつ、ぶつかっていないdxがあるか
@@ -130,7 +131,10 @@ class Player:
         w = 8 if self.direction > 0 else -8
         self.img.blt(self.x, self.y, 0, u, 24, w, 8, TRANSPARENT_COLOR)
         if show_bb:
-            self.img.rectb(self.x, self.y, 8, 8, 10)
+            if is_loose:
+                self.img.trib(self.x+4, self.y, self.x, self.y+7, self.x+7, self.y+7, 14)
+            else:
+                self.img.rectb(self.x, self.y, 8, 8, 10)
 
 
 class App:
@@ -149,11 +153,15 @@ class App:
         player = Player(0, 30, self.img)
 
     def update(self):
-        global is_loose, show_bb
+        global is_loose, show_bb, is_pback
         if pyxel.btnp(pyxel.KEY_1):
-            is_loose = not is_loose
-        elif pyxel.btnp(pyxel.KEY_2):
             show_bb = not show_bb
+        elif pyxel.btnp(pyxel.KEY_2):
+            is_loose = not is_loose
+        elif pyxel.btnp(pyxel.KEY_3):
+            is_pback = not is_pback
+        elif pyxel.btnp(pyxel.KEY_4):
+            game_over()
         player.update()
 
     def render(self):
@@ -163,8 +171,10 @@ class App:
         # Draw level
         g.camera()
         g.bltm(0, 0, 0, scroll_x, 0, 128, 128, TRANSPARENT_COLOR)
-        g.text(1, 1, "1:Loose ON" if is_loose else "1:Loose OFF", 7 if is_loose else 5)
-        g.text(60, 1, "2:BBox ON" if show_bb else "2:BBox OFF", 7 if show_bb else 5)
+        g.text(1, 1, "1:BBox", 7 if show_bb else 5)
+        g.text(32, 1, "2:Loose", 7 if is_loose else 5)
+        g.text(68, 1, "3:PBack", 7 if is_pback else 5)
+        g.text(104, 1, "4:RST", 5)
 
         # Draw characters
         g.camera(scroll_x, 0)
