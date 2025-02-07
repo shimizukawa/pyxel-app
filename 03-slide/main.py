@@ -114,6 +114,7 @@ class App:
         )
         self.colors = pyxel.colors.to_list()  # 親アプリ用のcolorsをバックアップ
         self._page = 0
+        self.child_apps = {}
         pyxel.mouse(True)
         self.reset()
 
@@ -129,6 +130,8 @@ class App:
         self.slides = self.load_slides(MD_FILENAME)
         self._page = min(self.page, len(self.slides) - 1)  # ページが減った場合
         self.in_transition = [0, 0, "down"]  # (rate(1..0), old_page, direction)
+        for app in self.child_apps.values():
+            sys.modules.pop(app.__module__, None)
         self.child_apps = {}  # page: app
         self.child_is_updated = False
 
