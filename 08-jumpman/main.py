@@ -36,7 +36,7 @@ def is_colliding(x, y, is_falling, use_loose=False):
     x2 = (pyxel.ceil(x) + 7) // 8
     y2 = (pyxel.ceil(y) + 7) // 8
     if use_loose:
-        x1 = (pyxel.floor(x)+ 4) // 8
+        x1 = (pyxel.floor(x) + 4) // 8
         x2 = (pyxel.ceil(x) + 3) // 8
 
     for yi in range(y1, y2 + 1):
@@ -100,11 +100,13 @@ class Player:
 
         # looseモードでの、ブロックハマりからの押し戻し処理
         if is_loose and is_colliding(self.x, self.y, False):
-            shift_x = round(self.x / 8) * 8  - self.x  # 近い方のタイルにずらす
+            shift_x = round(self.x / 8) * 8 - self.x  # 近い方のタイルにずらす
             shift_x = max(-1, min(1, shift_x))  # ずらす量を-1, 0, 1に制限
             # 全てのdxについて、スクロール内で、かつ、ぶつかっていないdxがあるか
             for dx in (-4, 4):
-                if self.x + dx > scroll_x and not is_colliding(self.x + dx, self.y, False):
+                if self.x + dx > scroll_x and not is_colliding(
+                    self.x + dx, self.y, False
+                ):
                     self.x += shift_x
                     break
             else:
