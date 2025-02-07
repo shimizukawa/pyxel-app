@@ -25,13 +25,24 @@ async def echo(websocket):
             for client in clients:
                 if client != websocket:
                     data |= {"id": _id, "type": "update"}
-                    await client.send(json.dumps(data))
+                    try:
+                        await client.send(json.dumps(data))
+                    except:
+                        pass
     except websockets.exceptions.ConnectionClosedError:
+        pass
+
+    if websocket in clients:
         clients.remove(websocket)
         print(f"Client {_id} disconnected, count: {len(clients)}")
 
     for client in clients:
-        await client.send(json.dumps({"id": _id, "type": "disconnect"}))
+        try:
+            await client.send(json.dumps({"id": _id, "type": "disconnect"}))
+        except websockets.exceptions.ConnectionClosedError:
+            pass
+
+    print("exit echo")
 
 
 async def main():
