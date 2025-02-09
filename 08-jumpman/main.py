@@ -99,6 +99,10 @@ class Player:
                 self.dy = -7
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
 
+        # 頭をぶつけたら上昇を止める
+        if self.dy <= 0 and self.y == last_y:
+            self.dy = 0
+
         # looseモードでの、ブロックハマりからの押し戻し処理
         if is_pback and is_colliding(self.x, self.y, False):
             shift_x = round(self.x / 8) * 8 - self.x  # 近い方のタイルにずらす
