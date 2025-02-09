@@ -30,7 +30,7 @@ font = pyxel.Font("assets/umplus_j12r.bdf")
 
 
 def load_words():
-    with open("assets/words.json", encoding="utf-8") as f:
+    with open("assets/05-typing-words.json", encoding="utf-8") as f:
         words = json.load(f)
     words = [s for s in words if s.isalpha()]
     random.shuffle(words)
@@ -183,7 +183,7 @@ class App:
         self.width = width
         self.height = height
         self.img = pyxel.Image(width, height)
-        pyxel.load("assets/res.pyxres")
+        pyxel.load("assets/05-typing.pyxres")
         self.reset()
 
     def reset(self):

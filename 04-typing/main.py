@@ -26,7 +26,7 @@ font = pyxel.Font("assets/umplus_j12r.bdf")
 
 
 def load_words():
-    with open("assets/words.json", encoding="utf-8") as f:
+    with open("assets/04-words.json", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -47,7 +47,7 @@ def draw_text_with_border(x, y, s, col, bcol, font):
 class App:
     def __init__(self):
         pyxel.init(WIDTH, HEIGHT, title=TITLE)
-        pyxel.load("assets/res.pyxres")
+        pyxel.load("assets/04-typing.pyxres")
         self.reset()
 
         # run forever

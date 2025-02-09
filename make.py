@@ -4,15 +4,24 @@
 
 import subprocess
 from pathlib import Path
+import shutil
 
 
 # 任意のディレクトリに対して以下を実行する
-def process_directory(directory):
-    subprocess.run(["uvx", "pyxel", "package", directory, f"{directory}/main.py"])
-    subprocess.run(["uvx", "pyxel", "app2html", directory])
-    # <directory>.html と <directory>.pyxapp を dist に移動
-    Path(f"{directory}.html").replace(f"dist/{directory}.html")
+def process_directory(directory: Path):
+    shutil.rmtree(directory / "__pycache__", ignore_errors=True)
+    shutil.rmtree(directory / "assets" / "__pycache__", ignore_errors=True)
+    shutil.rmtree(directory / "_build", ignore_errors=True)
+    subprocess.run(["uvx", "pyxel", "package", directory, directory / "main.py"])
     Path(f"{directory}.pyxapp").replace(f"dist/{directory}.pyxapp")
+    with Path("template.html").open("r") as f:
+        template = f.read()
+        Path(f"dist/{directory}.html").write_text(
+            template.format(packagename=str(directory))
+        )
+    # assetsをコピー
+    if Path(f"{directory}/assets").exists():
+        shutil.copytree(Path(f"{directory}/assets"), "dist/assets", dirs_exist_ok=True)
 
 
 def main():
@@ -20,7 +29,7 @@ def main():
     # 数字で始まるサブディレクトリを処理
     for directory in Path(".").glob("[0-9][0-9]-*"):
         if directory.is_dir():
-            process_directory(str(directory))
+            process_directory(directory)
 
 
 if __name__ == "__main__":

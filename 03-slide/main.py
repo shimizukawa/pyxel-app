@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import dataclasses
 import re
+import sys
 import time
 from pathlib import Path
 
@@ -25,7 +26,7 @@ import pyxel
 
 
 TITLE = "Pyxel app 03-slide"
-MD_FILENAME = "slide.md"
+MD_FILENAME = "assets/03-slide.md"
 # DEBUG = True
 DEBUG = False
 
@@ -68,6 +69,7 @@ directive_option_pattern = re.compile(r":(\w+): (.+)", re.MULTILINE)
 
 @dataclasses.dataclass
 class Slide:
+    path: Path
     sec: int
     page: int
     tokens: list
@@ -138,6 +140,7 @@ class App:
         import markdown_it
 
         md = markdown_it.MarkdownIt()
+        path = Path(filepath).resolve().parent
         content = Path(filepath).read_text(encoding="utf-8")
         tokens = md.parse(content)
         slides: list[Slide] = []
@@ -147,13 +150,15 @@ class App:
         for token in tokens:
             if token.type == "heading_open" and token.tag in ["h1", "h2", "h3"]:
                 if slide_tokens:
-                    slides.append(Slide(sec, page, slide_tokens, slide_tokens[0].tag))
+                    slides.append(
+                        Slide(path, sec, page, slide_tokens, slide_tokens[0].tag)
+                    )
                     page += 1
                     sec = sec + 1 if token.tag in ("h1", "h2") else sec
                     slide_tokens = []
             slide_tokens.append(token)
         if slide_tokens:
-            slides.append(Slide(sec, page, slide_tokens, slide_tokens[0].tag))
+            slides.append(Slide(path, sec, page, slide_tokens, slide_tokens[0].tag))
 
         for i, slide in enumerate(slides):
             if slide.level in ("h1", "h2"):
@@ -170,13 +175,16 @@ class App:
         filename: str,
         scale: float | None,
     ):
-        # ファイル名が .py の前提で読み込む
-        child = __import__(filename[:-3])
+        dotted_module = filename.replace("/", ".").replace("\\", ".").replace(".py", "")
+        mod = __import__(dotted_module)
+        for attr in dotted_module.split(".")[1:]:
+            mod = getattr(mod, attr)
+
         # scale処理
         if scale is not None:
             width = int(width / scale)
             height = int(height / scale)
-        a = self.child_apps[page] = child.App(width, height)
+        a = self.child_apps[page] = mod.App(width, height)
         scale = scale or 1.0
         # x 座標は、左パディングのみ考慮
         a.__x = max((pyxel.width - width * scale) // 2, WINDOW_PADDING)
@@ -707,26 +715,31 @@ class Visitor:
             print("unsupported directive", directive)
             return
         options = dict(directive_option_pattern.findall(token.content))
+        slide = self.app.slides[self.page]
+        path = slide.path / args
+        matches = {}  # .ext : path
 
-        if args.endswith(".*"):
-            args = args[:-2]
-            for ext in [".py", ".png", ".jpg"]:
-                path = Path(args + ext)
-                if path.exists():
-                    args = path.name
-                    break
+        if path.suffix == ".*":
+            for fname in path.parent.glob(path.name):
+                if fname.suffix in [".py", ".png", ".jpg"]:
+                    matches[fname.suffix] = fname
+        else:
+            matches[path.suffix] = path
 
-        if args.endswith(".py"):
+        if ".py" in matches:
             s = int(options.pop("scale", 100)) / 100 if "scale" in options else None
             w = int(options.pop("width", 355))
             h = int(options.pop("height", 200))
-            self.app.load_child(self.page, self.x, self.y, w, h, args, s)
+            module_file = matches[".py"].relative_to(Path().absolute())
+            self.app.load_child(self.page, self.x, self.y, w, h, str(module_file), s)
             if options:
                 print("Unsupported options", options)
             return
 
-        if args.endswith((".png", ".jpg")):
-            p = pyxel.Image.from_image(args)
+        for ext in (".png", ".jpg"):
+            if ext not in matches:
+                continue
+            p = pyxel.Image.from_image(str(matches[ext]))
             if "scale" in options:
                 s = int(options["scale"]) / 100
             else:

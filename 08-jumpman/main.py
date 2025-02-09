@@ -132,7 +132,9 @@ class Player:
         self.img.blt(self.x, self.y, 0, u, 24, w, 8, TRANSPARENT_COLOR)
         if show_bb:
             if is_loose:
-                self.img.trib(self.x+4, self.y, self.x, self.y+7, self.x+7, self.y+7, 14)
+                self.img.trib(
+                    self.x + 4, self.y, self.x, self.y + 7, self.x + 7, self.y + 7, 14
+                )
             else:
                 self.img.rectb(self.x, self.y, 8, 8, 10)
 
