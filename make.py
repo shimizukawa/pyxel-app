@@ -24,12 +24,29 @@ def process_directory(directory: Path):
         shutil.copytree(Path(f"{directory}/assets"), "dist/assets", dirs_exist_ok=True)
 
 
+def create_index_html(packagenames):
+    with Path("index.html").open("r") as f:
+        template = f.read()
+        lines = template.splitlines(keepends=True)
+        with Path("dist/index.html").open("w") as f:
+            for line in lines:
+                if "{packagename}" in line:
+                    for packagename in packagenames:
+                        f.write(line.format(packagename=packagename))
+                else:
+                    f.write(line)
+
+
 def main():
     Path("./dist").mkdir(exist_ok=True, parents=True)
+    packagenames = []
     # 数字で始まるサブディレクトリを処理
     for directory in Path(".").glob("[0-9][0-9]-*"):
         if directory.is_dir():
             process_directory(directory)
+            packagenames.append(str(directory))
+
+    create_index_html(packagenames)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,10 @@
 
 各ディレクトリのREADMEにプログラム固有の説明があります。
 
+## デモ
+
+- https://shimizukawa.github.io/pyxel-app/
+
 ## 実行
 
 以下は、共通の起動方法など。
