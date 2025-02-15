@@ -26,7 +26,7 @@ font = pyxel.Font("assets/umplus_j12r.bdf")
 
 
 def load_words():
-    with open("assets/04-words.json", encoding="utf-8") as f:
+    with open("assets/04-typing-words.json", encoding="utf-8") as f:
         return json.load(f)
 
 

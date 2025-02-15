@@ -46,7 +46,7 @@ def main():
             process_directory(directory)
             packagenames.append(str(directory))
 
-    create_index_html(packagenames)
+    create_index_html(sorted(packagenames))
 
 
 if __name__ == "__main__":
