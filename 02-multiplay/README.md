@@ -7,7 +7,7 @@
 サーバーを起動
 
 ```shell
-uv run server.py
+uv run wsserver.py
 ```
 
 アプリを起動
