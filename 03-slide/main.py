@@ -17,6 +17,7 @@
 import asyncio
 import contextlib
 import dataclasses
+import itertools
 import re
 import sys
 import time
@@ -103,6 +104,82 @@ class FPS:
     def __str__(self):
         return str(self.value)
 
+    
+class NavBtn:
+    DOWN = 0
+    LEFT = 1
+    UP = 2
+    RIGHT = 3
+
+    def __init__(self, i, offset_x, offset_y, col, active_col, on):
+        self.i = i
+        self.col = col
+        self.active_col = active_col
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        self.setup_coords(i)
+        self.on = on
+        self.hover = False
+
+    def setup_coords(self, i):
+        c = 45 * (1 + i * 2)
+        sin = pyxel.sin
+        cos = pyxel.cos
+        xlist = []
+        ylist = []
+        for x1, y1, x2, y2 in ((9, 9, 2, 9), (9, 9, 9, 2)):
+            # 原点を中心に45度回転した座標で直線の座標を計算
+            rx1 = round(x1 * cos(c) - y1 * sin(c))
+            ry1 = round(x1 * sin(c) + y1 * cos(c))
+            rx2 = round(x2 * cos(c) - y2 * sin(c))
+            ry2 = round(x2 * sin(c) + y2 * cos(c))
+            xlist.append((rx1, rx2))
+            ylist.append((ry1, ry2))
+
+        self.xlist = xlist
+        self.ylist = ylist
+        xflat = list(itertools.chain(*xlist))
+        yflat = list(itertools.chain(*ylist))
+        self.rect = (min(xflat), min(yflat), max(xflat), max(yflat))
+
+    def update(self):
+        # mouse
+        self.hover = (
+            self.rect[0] <= pyxel.mouse_x - self.offset_x <= self.rect[2]
+            and self.rect[1] <= pyxel.mouse_y - self.offset_y <= self.rect[3]
+        )
+
+        # action
+        if (
+            self.i == self.DOWN and (
+                pyxel.btnp(pyxel.KEY_DOWN, KEY_HOLD, KEY_REPEAT) or
+                pyxel.btnp(pyxel.KEY_J, KEY_HOLD, KEY_REPEAT)
+            ) or
+            self.i == self.LEFT and (
+                pyxel.btnp(pyxel.KEY_LEFT, KEY_HOLD, KEY_REPEAT) or
+                pyxel.btnp(pyxel.KEY_H, KEY_HOLD, KEY_REPEAT)
+            ) or
+            self.i == self.UP and (
+                pyxel.btnp(pyxel.KEY_UP, KEY_HOLD, KEY_REPEAT) or
+                pyxel.btnp(pyxel.KEY_K, KEY_HOLD, KEY_REPEAT)
+            ) or
+            self.i == self.RIGHT and (
+                pyxel.btnp(pyxel.KEY_RIGHT, KEY_HOLD, KEY_REPEAT) or
+                pyxel.btnp(pyxel.KEY_L, KEY_HOLD, KEY_REPEAT)
+            ) or
+            self.hover and pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT)
+        ):
+            self.on()
+            self.hover = True
+
+    def draw(self):
+        ox = self.offset_x
+        oy = self.offset_y
+        col = self.active_col if self.hover else self.col
+
+        for (x1, x2), (y1, y2) in zip(self.xlist, self.ylist):
+            pyxel.line(ox + x1, oy + y1, ox + x2, oy + y2, col)
+
 
 class App:
     def __init__(self):
@@ -116,6 +193,12 @@ class App:
         self.colors = pyxel.colors.to_list()  # 親アプリ用のcolorsをバックアップ
         self._page = 0
         self.child_apps = {}
+        self.navs = [
+            NavBtn(NavBtn.DOWN, pyxel.width - 20, pyxel.height - 20, 5, 9, self.go_next_page),
+            NavBtn(NavBtn.LEFT, pyxel.width - 20, pyxel.height - 20, 5, 9, self.go_prev_section),
+            NavBtn(NavBtn.UP, pyxel.width - 20, pyxel.height - 20, 5, 9, self.go_prev_page),
+            NavBtn(NavBtn.RIGHT, pyxel.width - 20, pyxel.height - 20, 5, 9, self.go_next_section),
+        ]
         pyxel.mouse(True)
         self.reset()
 
@@ -280,23 +363,10 @@ class App:
         if self.in_transition[0] > 0:
             self.in_transition[0] = self.in_transition[0] - 3 / self.fps
 
-        if pyxel.btnp(pyxel.KEY_DOWN, key_hold, key_repeat):
-            self.go_next_page()
-        elif pyxel.btnp(pyxel.KEY_J, key_hold, key_repeat):
-            self.go_next_page()
-        elif pyxel.btnp(pyxel.KEY_UP, key_hold, key_repeat):
-            self.go_prev_page()
-        elif pyxel.btnp(pyxel.KEY_K, key_hold, key_repeat):
-            self.go_prev_page()
-        elif pyxel.btnp(pyxel.KEY_RIGHT, key_hold, key_repeat):
-            self.go_next_section()
-        elif pyxel.btnp(pyxel.KEY_L, key_hold, key_repeat):
-            self.go_next_section()
-        elif pyxel.btnp(pyxel.KEY_LEFT, key_hold, key_repeat):
-            self.go_prev_section()
-        elif pyxel.btnp(pyxel.KEY_H, key_hold, key_repeat):
-            self.go_prev_section()
-        elif pyxel.btnp(pyxel.KEY_SPACE, key_hold, key_repeat):
+        for nav in self.navs:
+            nav.update()
+
+        if pyxel.btnp(pyxel.KEY_SPACE, key_hold, key_repeat):
             if pyxel.btn(pyxel.KEY_SHIFT):
                 self.go_backward()
             else:
@@ -398,26 +468,21 @@ class App:
     def draw_nav(self):
         if self.child_is_updated:
             return
-        w, h = pyxel.width, pyxel.height
         if (
             self.page + 1 not in self.first_pages_in_section
             and self.page != len(self.slides) - 1
         ):
             # セクション内の最後のページではない
-            pyxel.line(w - 20, h - 10, w - 15, h - 15, 5)
-            pyxel.line(w - 20, h - 10, w - 25, h - 15, 5)
+            self.navs[NavBtn.DOWN].draw() # ↓
         if self.page < self.first_pages_in_section[-1]:
             # 最後のセクションではない
-            pyxel.line(w - 5, h - 25, w - 10, h - 20, 5)
-            pyxel.line(w - 5, h - 25, w - 10, h - 30, 5)
+            self.navs[NavBtn.RIGHT].draw() # →
         if self.page not in self.first_pages_in_section:
             # セクション内の最初のページではない
-            pyxel.line(w - 20, h - 40, w - 15, h - 35, 6)
-            pyxel.line(w - 20, h - 40, w - 25, h - 35, 6)
+            self.navs[NavBtn.UP].draw() # ↑
         if self.page != 0:
             # 最初のセクションではない
-            pyxel.line(w - 35, h - 25, w - 30, h - 20, 6)
-            pyxel.line(w - 35, h - 25, w - 30, h - 30, 6)
+            self.navs[NavBtn.LEFT].draw() # ←
 
 
 def use_font(font: str):
