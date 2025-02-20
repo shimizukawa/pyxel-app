@@ -152,20 +152,24 @@ class NavBtn:
         # action
         if (
             self.i == self.DOWN and (
-                pyxel.btnp(pyxel.KEY_DOWN, KEY_HOLD, KEY_REPEAT) or
-                pyxel.btnp(pyxel.KEY_J, KEY_HOLD, KEY_REPEAT)
+                pyxel.btnp(pyxel.KEY_DOWN, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.KEY_J, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.GAMEPAD1_BUTTON_DPAD_DOWN)
             ) or
             self.i == self.LEFT and (
-                pyxel.btnp(pyxel.KEY_LEFT, KEY_HOLD, KEY_REPEAT) or
-                pyxel.btnp(pyxel.KEY_H, KEY_HOLD, KEY_REPEAT)
+                pyxel.btnp(pyxel.KEY_LEFT, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.KEY_H, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.GAMEPAD1_BUTTON_DPAD_LEFT)
             ) or
             self.i == self.UP and (
-                pyxel.btnp(pyxel.KEY_UP, KEY_HOLD, KEY_REPEAT) or
-                pyxel.btnp(pyxel.KEY_K, KEY_HOLD, KEY_REPEAT)
+                pyxel.btnp(pyxel.KEY_UP, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.KEY_K, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.GAMEPAD1_BUTTON_DPAD_UP)
             ) or
             self.i == self.RIGHT and (
-                pyxel.btnp(pyxel.KEY_RIGHT, KEY_HOLD, KEY_REPEAT) or
-                pyxel.btnp(pyxel.KEY_L, KEY_HOLD, KEY_REPEAT)
+                pyxel.btnp(pyxel.KEY_RIGHT, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.KEY_L, KEY_HOLD, KEY_REPEAT)
+                or pyxel.btnp(pyxel.GAMEPAD1_BUTTON_DPAD_RIGHT)
             ) or
             self.hover and pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT)
         ):
