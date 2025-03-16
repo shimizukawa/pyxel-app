@@ -40,16 +40,12 @@ def is_radder(x, y):
     return False
 
 
-def dig_block(x: int, y: int):
-    x1, y1 = x // 8, y // 8
+def dig_block(x: int, y: int) -> bool:
+    x1, y1 = (x + 4) // 8, (y + 4) // 8
     try:
-        block = blocks[(x1, y1)]
-        print(f"{block=}")
-        if block.type == TILE_BRICK:
-            block.damage += 2
-            return block
+        return blocks[(x1, y1)].dig()
     except KeyError:
-        return None
+        return False
 
 
 def is_colliding(x, y, is_falling, use_radder, use_loose=False):
@@ -104,19 +100,25 @@ class Block:
     def __repr__(self):
         return f"Block({self.x=}, {self.y=}, {self.type=}, {self.damage=})"
 
+    def dig(self) -> bool:
+        if self.type == TILE_BRICK:
+            self.damage = min(90, self.damage + 3)
+            return True
+        return False
+
     def update(self):
-        self.damage = min(47, self.damage)
+        self.damage = min(90, self.damage)
         self.damage = max(0, self.damage - 1)
 
     def draw(self):
         u, v = self.type
         if self.damage == 0:
             return
-        if 0 < self.damage <= 16:
+        elif self.damage <= 30:
             u += 1
-        if 16 < self.damage <= 32:
+        elif self.damage <= 60:
             u += 2
-        if 32 < self.damage:
+        else:
             u += 3
         self.img.blt(self.x, self.y, 0, u * 8, v * 8, 8, 8, TRANSPARENT_COLOR)
 
@@ -137,29 +139,35 @@ class Player:
         self.frame_count = pyxel.frame_count
         global scroll_x
         last_y = self.y
-        if pyxel.btn(pyxel.KEY_LEFT):
-            self.dx = -1
-            self.direction = -1
-        if pyxel.btn(pyxel.KEY_RIGHT):
-            self.dx = 1
-            self.direction = 1
-        if pyxel.btn(pyxel.KEY_UP) and is_radder(self.x, self.y):
-            self.dy = -1
-            self.use_radder = True
-        elif pyxel.btn(pyxel.KEY_DOWN) and is_radder(self.x, self.y):
-            self.dy = 1
-            self.use_radder = True
-        else:
-            self.dy = 2
-            self.use_radder = False
-        self.x, self.y = push_back(self.x, self.y, self.dx, self.dy, self.use_radder)
 
-        if pyxel.btn(pyxel.KEY_X):
-            digging = dig_block(self.x + 8, self.y + 8)
-            print(f"{digging=}")
-        elif pyxel.btn(pyxel.KEY_Z):
+        if pyxel.btn(pyxel.KEY_Z):
+            # 左を優先
             digging = dig_block(self.x - 8, self.y + 8)
-            print(f"{digging=}")
+            self.direction = -1
+        elif pyxel.btn(pyxel.KEY_X):
+            digging = dig_block(self.x + 8, self.y + 8)
+            self.direction = 1
+        else:
+            # 穴掘りしていない場合は移動できる
+            if pyxel.btn(pyxel.KEY_LEFT):
+                # 左を優先
+                self.dx = -1
+                self.direction = -1
+            elif pyxel.btn(pyxel.KEY_RIGHT):
+                self.dx = 1
+                self.direction = 1
+            if pyxel.btn(pyxel.KEY_UP) and is_radder(self.x, self.y):
+                # 上を優先
+                self.dy = -1
+                self.use_radder = True
+            elif pyxel.btn(pyxel.KEY_DOWN) and is_radder(self.x, self.y):
+                self.dy = 1
+                self.use_radder = True
+            else:
+                # はしごを使っていない場合は落ちる
+                self.dy = 2
+                self.use_radder = False
+            self.x, self.y = push_back(self.x, self.y, self.dx, self.dy, self.use_radder)
 
         # looseモードでの、ブロックハマりからの押し戻し処理
         if is_pback and is_colliding(self.x, self.y, False, False):
