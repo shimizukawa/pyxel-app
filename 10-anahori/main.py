@@ -1,0 +1,309 @@
+# title: Pyxel app 10-anahori
+# author: Takayuki Shimizukawa
+# desc: Anahori runner based upon Pyxel Platformer example by Takashi Kitao
+# site: https://github.com/shimizukawa/pyxel-app
+# license: MIT
+# version: 1.0
+
+import pyxel
+
+TRANSPARENT_COLOR = 2
+SCROLL_BORDER_X = 80
+TILE_FLOOR = (1, 0)
+WALL_TILE_X = 4
+TILE_RADDER = (0, 5)
+TILE_BRICK = (4, 2)
+
+scroll_x = 0
+_height = 0
+player = None
+is_loose = True
+show_bb = False
+is_pback = True
+
+
+def get_tile(tile_x, tile_y):
+    return pyxel.tilemaps[0].pget(tile_x, tile_y)
+
+
+def is_radder(x, y):
+    x1 = pyxel.floor(x) // 8
+    y1 = pyxel.floor(y) // 8
+    x2 = (pyxel.ceil(x) + 7) // 8
+    y2 = (pyxel.ceil(y) + 7) // 8
+
+    for yi in range(y1, y2 + 1):
+        for xi in range(x1, x2 + 1):
+            if get_tile(xi, yi) == TILE_RADDER:
+                return True
+
+    return False
+
+
+def dig_block(x: int, y: int):
+    x1, y1 = x // 8, y // 8
+    try:
+        block = blocks[(x1, y1)]
+        print(f"{block=}")
+        if block.type == TILE_BRICK:
+            block.damage += 2
+            return block
+    except KeyError:
+        return None
+
+
+def is_colliding(x, y, is_falling, use_radder, use_loose=False):
+    x1 = pyxel.floor(x) // 8
+    y1 = pyxel.floor(y) // 8
+    x2 = (pyxel.ceil(x) + 7) // 8
+    y2 = (pyxel.ceil(y) + 7) // 8
+    if use_loose:
+        x1 = (pyxel.floor(x) + 4) // 8
+        x2 = (pyxel.ceil(x) + 3) // 8
+
+    for yi in range(y1, y2 + 1):
+        for xi in range(x1, x2 + 1):
+            if get_tile(xi, yi)[0] >= WALL_TILE_X:
+                return True
+    if use_loose:
+        return False
+
+    if not use_radder and is_falling and y % 8 == 1:
+        for xi in range(x1, x2 + 1):
+            if get_tile(xi, y1 + 1) in (TILE_FLOOR, TILE_RADDER):
+                return True
+    return False
+
+
+def push_back(x, y, dx, dy, use_radder):
+    for _ in range(pyxel.ceil(abs(dy))):
+        step = max(-1, min(1, dy))
+        if dy > 0 and is_colliding(x, y + step, dy > 0, use_radder):
+            break
+        elif dy < 0 and is_colliding(x, y + step, dy > 1, use_radder, use_loose=is_loose):
+            break
+        y += step
+        dy -= step
+    for _ in range(pyxel.ceil(abs(dx))):
+        step = max(-1, min(1, dx))
+        if is_colliding(x + step, y, dy > 1, use_radder):
+            break
+        x += step
+        dx -= step
+    return x, y
+
+
+class Block:
+    def __init__(self, img, x, y, type):
+        self.img = img
+        self.type = type
+        self.x = x
+        self.y = y
+        self.damage = 0
+
+    def __repr__(self):
+        return f"Block({self.x=}, {self.y=}, {self.type=}, {self.damage=})"
+
+    def update(self):
+        self.damage = min(47, self.damage)
+        self.damage = max(0, self.damage - 1)
+
+    def draw(self):
+        u, v = self.type
+        if self.damage == 0:
+            return
+        if 0 < self.damage <= 16:
+            u += 1
+        if 16 < self.damage <= 32:
+            u += 2
+        if 32 < self.damage:
+            u += 3
+        self.img.blt(self.x, self.y, 0, u * 8, v * 8, 8, 8, TRANSPARENT_COLOR)
+
+
+class Player:
+    def __init__(self, x, y, img):
+        self.img = img
+        self.x = x
+        self.y = y
+        self.dx = 0
+        self.dy = 0
+        self.direction = 1
+        self.is_falling = False
+        self.use_radder = False
+        self.frame_count = 0
+
+    def update(self):
+        self.frame_count = pyxel.frame_count
+        global scroll_x
+        last_y = self.y
+        if pyxel.btn(pyxel.KEY_LEFT):
+            self.dx = -1
+            self.direction = -1
+        if pyxel.btn(pyxel.KEY_RIGHT):
+            self.dx = 1
+            self.direction = 1
+        if pyxel.btn(pyxel.KEY_UP) and is_radder(self.x, self.y):
+            self.dy = -1
+            self.use_radder = True
+        elif pyxel.btn(pyxel.KEY_DOWN) and is_radder(self.x, self.y):
+            self.dy = 1
+            self.use_radder = True
+        else:
+            self.dy = 2
+            self.use_radder = False
+        self.x, self.y = push_back(self.x, self.y, self.dx, self.dy, self.use_radder)
+
+        if pyxel.btn(pyxel.KEY_X):
+            digging = dig_block(self.x + 8, self.y + 8)
+            print(f"{digging=}")
+        elif pyxel.btn(pyxel.KEY_Z):
+            digging = dig_block(self.x - 8, self.y + 8)
+            print(f"{digging=}")
+
+        # looseモードでの、ブロックハマりからの押し戻し処理
+        if is_pback and is_colliding(self.x, self.y, False, False):
+            shift_x = round(self.x / 8) * 8 - self.x  # 近い方のタイルにずらす
+            shift_x = max(-1, min(1, shift_x))  # ずらす量を-1, 0, 1に制限
+            # 全てのdxについて、スクロール内で、かつ、ぶつかっていないdxがあるか
+            for dx in (-4, 4):
+                if self.x + dx > scroll_x and not is_colliding(
+                    self.x + dx, self.y, False, False
+                ):
+                    self.x += shift_x
+                    break
+            else:
+                # ハマっているので右方向にずらす
+                self.x += 1
+
+        if self.x < scroll_x:
+            self.x = scroll_x
+        if self.y < 0:
+            self.y = 0
+        self.dx = int(self.dx * 0.8)
+        self.is_falling = self.y > last_y
+        # self.is_ladder = True
+
+        # if self.x > scroll_x + SCROLL_BORDER_X:
+        #     scroll_x = min(self.x - SCROLL_BORDER_X, 240 * 8)
+        if self.y >= _height:
+            game_over()
+
+    def draw(self):
+        if self.use_radder:
+            u = (2 + self.frame_count // 3 % 2)
+            w = 8
+        elif self.is_falling:
+            u = 0
+            w = 8
+        else:
+            u = (0 + self.frame_count // 3 % 2)
+            w = 8 if self.direction > 0 else -8
+        # u = (0 if self.is_falling else self.frame_count // 3 % 2)
+        self.img.blt(self.x, self.y, 0, u * 8, 24, w, 8, TRANSPARENT_COLOR)
+        if show_bb:
+            if is_loose:
+                self.img.trib(
+                    self.x + 4, self.y, self.x, self.y + 7, self.x + 7, self.y + 7, 14
+                )
+            else:
+                self.img.rectb(self.x, self.y, 8, 8, 10)
+
+
+blocks: dict[tuple[int, int], Block] = {}
+
+
+def init_tiles(img):
+    for ix in range(0, 16):
+        for iy in range(0, 16):
+            tile = get_tile(ix, iy)
+            print(f"{ix=}, {iy=}, {tile=}")
+            x, y = ix * 8, iy * 8
+            blocks[(ix, iy)] = Block(img, x, y, tile)
+
+
+class App:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        global _height
+        _height = height
+        self.img = pyxel.Image(width, height)
+        pyxel.load("assets/10-anahori.pyxres")
+
+        # Change enemy spawn tiles invisible
+        pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
+
+        global player
+        player = Player(0, 14, self.img)
+
+        init_tiles(self.img)
+
+    def update(self):
+        global is_loose, show_bb, is_pback
+        if pyxel.btnp(pyxel.KEY_1):
+            show_bb = not show_bb
+        elif pyxel.btnp(pyxel.KEY_2):
+            is_loose = not is_loose
+        elif pyxel.btnp(pyxel.KEY_3):
+            is_pback = not is_pback
+        elif pyxel.btnp(pyxel.KEY_4):
+            game_over()
+        for b in blocks.values():
+            b.update()
+        player.update()
+
+    def render(self):
+        g = self.img
+        g.cls(0)
+
+        # Draw level
+        g.camera()
+        g.bltm(0, 0, 0, scroll_x, 0, 128, 128, TRANSPARENT_COLOR)
+        for b in blocks.values():
+            b.draw()
+        g.text(1, 1, "1:BBox", 7 if show_bb else 5)
+        g.text(32, 1, "2:Loose", 7 if is_loose else 5)
+        g.text(68, 1, "3:PBack", 7 if is_pback else 5)
+        g.text(104, 1, "4:RST", 5)
+
+        # Draw characters
+        g.camera(scroll_x, 0)
+        player.draw()
+        return g
+
+
+def game_over():
+    global scroll_x
+    scroll_x = 0
+    player.x = 0
+    player.y = 14
+    player.dx = 0
+    player.dy = 0
+
+
+class ParentApp:
+    def __init__(self):
+        pyxel.init(128, 96, title="anahori")
+        self.child = App(width=128, height=96)
+        pyxel.run(self.update, self.draw)
+
+    def update(self):
+        self.child.update()
+
+    def draw(self):
+        g = self.child.render()
+        pyxel.blt(
+            (pyxel.width - g.width) // 2,
+            (pyxel.height - g.height) // 2,
+            g,
+            0,
+            0,
+            g.width,
+            g.height,
+        )
+
+
+if __name__ == "__main__":
+    ParentApp()
+
