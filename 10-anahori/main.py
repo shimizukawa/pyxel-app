@@ -13,6 +13,9 @@ TILE_FLOOR = (1, 0)
 WALL_TILE_X = 4
 TILE_RADDER = (0, 5)
 TILE_BRICK = (4, 2)
+TILE_SPAWN1 = (0, 1)
+TILE_SPAWN2 = (1, 1)
+TILE_SPAWN3 = (2, 1)
 
 scroll_x = 0
 _height = 0
@@ -87,6 +90,77 @@ def push_back(x, y, dx, dy, use_radder):
         x += step
         dx -= step
     return x, y
+
+
+
+def is_wall(x, y):
+    tile = get_tile(x // 8, y // 8)
+    return tile == TILE_FLOOR or tile[0] >= WALL_TILE_X
+
+
+class BaseEnemy:
+    x: int
+    y: int
+    dx: int
+    dy: int
+    direction: int
+    is_alive: bool
+
+    def update(self):
+        pass
+
+    def draw(self):
+        pass
+
+
+class Enemy1(BaseEnemy): pass
+class Enemy3(BaseEnemy): pass
+
+class Enemy2(BaseEnemy):
+    def __init__(self, img, x, y):
+        self.img = img
+        self.x = x
+        self.y = y
+        self.dx = 0
+        self.dy = 0
+        self.direction = 1
+        self.is_alive = True
+
+    def update(self):
+        self.dx = self.direction
+        self.dy = min(self.dy + 1, 3)
+        if is_wall(self.x, self.y + 8) or is_wall(self.x + 7, self.y + 8):
+            if self.direction < 0 and (
+                is_wall(self.x - 1, self.y + 4) or not is_wall(self.x - 1, self.y + 8)
+            ):
+                self.direction = 1
+            elif self.direction > 0 and (
+                is_wall(self.x + 8, self.y + 4) or not is_wall(self.x + 7, self.y + 8)
+            ):
+                self.direction = -1
+        self.x, self.y = push_back(self.x, self.y, self.dx, self.dy, False)
+
+    def draw(self):
+        u = pyxel.frame_count // 4 % 2 * 8 + 16
+        w = 8 if self.direction > 0 else -8
+        self.img.blt(self.x, self.y, 0, u, 16, w, 8, TRANSPARENT_COLOR)
+
+
+enemies: list[BaseEnemy] = []
+
+
+def spawn_enemy(img, left_x, right_x):
+    left_x = pyxel.ceil(left_x / 8)
+    right_x = pyxel.floor(right_x / 8)
+    for x in range(left_x, right_x + 1):
+        for y in range(16):
+            tile = get_tile(x, y)
+            if tile == TILE_SPAWN1:
+                enemies.append(Enemy1(img, x * 8, y * 8))
+            elif tile == TILE_SPAWN2:
+                enemies.append(Enemy2(img, x * 8, y * 8))
+            elif tile == TILE_SPAWN3:
+                enemies.append(Enemy3(img, x * 8, y * 8))
 
 
 class Block:
@@ -246,6 +320,7 @@ class App:
         player = Player(0, 14, self.img)
 
         init_tiles(self.img)
+        spawn_enemy(self.img, 0, 127)
 
     def update(self):
         global is_loose, show_bb, is_pback
@@ -260,6 +335,14 @@ class App:
         for b in blocks.values():
             b.update()
         player.update()
+
+        for enemy in enemies:
+            if abs(player.x - enemy.x) < 6 and abs(player.y - enemy.y) < 6:
+                game_over()
+                return
+            enemy.update()
+            if enemy.x < scroll_x - 8 or enemy.x > scroll_x + 160 or enemy.y > 160:
+                enemy.is_alive = False
 
     def render(self):
         g = self.img
@@ -278,6 +361,8 @@ class App:
         # Draw characters
         g.camera(scroll_x, 0)
         player.draw()
+        for enemy in enemies:
+            enemy.draw()
         return g
 
 
