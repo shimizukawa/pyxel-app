@@ -25,7 +25,21 @@ show_bb = False
 is_pback = True
 
 
+def dbg(func):
+    import sys
+    import inspect
+    def wrapper(*args, **kwargs):
+        r = func(*args, **kwargs)
+        argstr = ", ".join(f"{n}={v}" for n, v in zip(func.__code__.co_varnames, args))
+        frame_info = inspect.getframeinfo(sys._getframe(1))
+        print(f"{frame_info.lineno}: {frame_info.code_context[0].rstrip()}")
+        print(f"{func.__code__.co_firstlineno}: {func.__name__}({argstr}, {kwargs}) -> {r}")
+        return r
+    return wrapper
+
+
 def get_tile(tile_x, tile_y):
+    # TODO: blocksで判定
     return pyxel.tilemaps[0].pget(tile_x, tile_y)
 
 
@@ -92,9 +106,11 @@ def push_back(x, y, dx, dy, use_radder):
     return x, y
 
 
-
-def is_wall(x, y):
+# @dbg
+def is_wall(x, y, *, include_ladder=False):
     tile = get_tile(x // 8, y // 8)
+    if tile == TILE_RADDER and include_ladder:
+        return True
     return tile == TILE_FLOOR or tile[0] >= WALL_TILE_X
 
 
@@ -131,11 +147,11 @@ class Enemy2(BaseEnemy):
         self.dy = min(self.dy + 1, 3)
         if is_wall(self.x, self.y + 8) or is_wall(self.x + 7, self.y + 8):
             if self.direction < 0 and (
-                is_wall(self.x - 1, self.y + 4) or not is_wall(self.x - 1, self.y + 8)
+                is_wall(self.x - 1, self.y + 4) or not is_wall(self.x - 1, self.y + 8, include_ladder=True)
             ):
                 self.direction = 1
             elif self.direction > 0 and (
-                is_wall(self.x + 8, self.y + 4) or not is_wall(self.x + 7, self.y + 8)
+                is_wall(self.x + 8, self.y + 4) or not is_wall(self.x + 7, self.y + 8, include_ladder=True)
             ):
                 self.direction = -1
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy, False)
