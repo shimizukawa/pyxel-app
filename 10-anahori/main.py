@@ -38,8 +38,10 @@ def dbg(func):
     return wrapper
 
 
-def get_tile(tile_x, tile_y):
-    # TODO: blocksで判定
+def get_tile(tile_x, tile_y) -> tuple[int, int]:
+    if b := blocks.get((tile_x, tile_y)):
+        # blocks初期化後はこちらで判定
+        return b.current_type
     return pyxel.tilemaps[0].pget(tile_x, tile_y)
 
 
@@ -55,14 +57,6 @@ def is_radder(x, y):
                 return True
 
     return False
-
-
-def dig_block(x: int, y: int) -> bool:
-    x1, y1 = (x + 4) // 8, (y + 4) // 8
-    try:
-        return blocks[(x1, y1)].dig()
-    except KeyError:
-        return False
 
 
 def is_colliding(x, y, is_falling, use_radder, use_loose=False):
@@ -190,8 +184,18 @@ class Block:
     def __repr__(self):
         return f"Block({self.x=}, {self.y=}, {self.type=}, {self.damage=})"
 
+    @property
+    def is_diggable(self) -> bool:
+        return self.type == TILE_BRICK
+
+    @property
+    def current_type(self) -> tuple[int, int]:
+        if self.is_diggable:
+            return TILE_BRICK if self.damage < 60 else (0, 0)
+        return self.type
+
     def dig(self) -> bool:
-        if self.type == TILE_BRICK:
+        if self.is_diggable:
             self.damage = min(90, self.damage + 3)
             return True
         return False
@@ -213,6 +217,17 @@ class Block:
         self.img.blt(self.x, self.y, 0, u * 8, v * 8, 8, 8, TRANSPARENT_COLOR)
 
 
+def get_diggable_block(x: int, y: int) -> Block | None:
+    x1, y1 = (x + 4) // 8, (y + 4) // 8
+    b = blocks.get((x1, y1))
+    return b if b and b.is_diggable else None
+
+
+def dig_block(x: int, y: int) -> bool:
+    b = get_diggable_block(x, y)
+    return b.dig() if b else False
+
+
 class Player:
     def __init__(self, x, y, img):
         self.img = img
@@ -224,18 +239,43 @@ class Player:
         self.is_falling = False
         self.use_radder = False
         self.frame_count = 0
+        self.is_die = False
+
+    def die(self):
+        self.is_die = True
+
+    def update_for_die(self):
+        # サインカーブで飛び上がって落ちる
+        df = pyxel.frame_count - self.frame_count 
+        if df < 3:
+            self.y += -4
+        elif df < 15:
+            pass
+        elif df < 80:
+            self.y += 4
+            self.use_radder = True
+        elif self.y >= _height:
+            game_over()
 
     def update(self):
+        if self.is_die:
+            return self.update_for_die()
+
         self.frame_count = pyxel.frame_count
         global scroll_x
         last_y = self.y
 
-        if pyxel.btn(pyxel.KEY_Z):
+        is_fal = self.is_falling
+        is_rdr = is_radder(self.x, self.y)
+        diggable_l = not is_fal and get_diggable_block(self.x - 8, self.y + 8)
+        diggable_r = not is_fal and get_diggable_block(self.x + 8, self.y + 8)
+
+        if diggable_l and pyxel.btn(pyxel.KEY_Z):
             # 左を優先
-            digging = dig_block(self.x - 8, self.y + 8)
+            digging = diggable_l.dig()
             self.direction = -1
-        elif pyxel.btn(pyxel.KEY_X):
-            digging = dig_block(self.x + 8, self.y + 8)
+        elif diggable_r and pyxel.btn(pyxel.KEY_X):
+            digging = diggable_r.dig()
             self.direction = 1
         else:
             # 穴掘りしていない場合は移動できる
@@ -246,11 +286,11 @@ class Player:
             elif pyxel.btn(pyxel.KEY_RIGHT):
                 self.dx = 1
                 self.direction = 1
-            if pyxel.btn(pyxel.KEY_UP) and is_radder(self.x, self.y):
+            if is_rdr and pyxel.btn(pyxel.KEY_UP):
                 # 上を優先
                 self.dy = -1
                 self.use_radder = True
-            elif pyxel.btn(pyxel.KEY_DOWN) and is_radder(self.x, self.y):
+            elif is_rdr and pyxel.btn(pyxel.KEY_DOWN):
                 self.dy = 1
                 self.use_radder = True
             else:
@@ -351,10 +391,12 @@ class App:
         for b in blocks.values():
             b.update()
         player.update()
+        if player.is_die:
+            return
 
         for enemy in enemies:
             if abs(player.x - enemy.x) < 6 and abs(player.y - enemy.y) < 6:
-                game_over()
+                player.die()
                 return
             enemy.update()
             if enemy.x < scroll_x - 8 or enemy.x > scroll_x + 160 or enemy.y > 160:
@@ -389,6 +431,8 @@ def game_over():
     player.y = 14
     player.dx = 0
     player.dy = 0
+    player.is_die = False
+    player.use_radder = False
 
 
 class ParentApp:
