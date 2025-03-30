@@ -129,8 +129,16 @@ class Enemy3(BaseEnemy): pass
 class Enemy2(BaseEnemy):
     def __init__(self, img, x, y):
         self.img = img
-        self.x = x
-        self.y = y
+        self.initial_x = self.x = x
+        self.initial_y = self.y = y
+        self.dx = 0
+        self.dy = 0
+        self.direction = 1
+        self.is_alive = True
+
+    def reset(self):
+        self.x = self.initial_x
+        self.y = self.initial_y
         self.dx = 0
         self.dy = 0
         self.direction = 1
@@ -240,6 +248,14 @@ class Player:
         self.use_radder = False
         self.frame_count = 0
         self.is_die = False
+
+    def reset(self):
+        player.x = 0
+        player.y = 14
+        player.dx = 0
+        player.dy = 0
+        player.is_die = False
+        player.use_radder = False
 
     def die(self):
         self.is_die = True
@@ -427,12 +443,9 @@ class App:
 def game_over():
     global scroll_x
     scroll_x = 0
-    player.x = 0
-    player.y = 14
-    player.dx = 0
-    player.dy = 0
-    player.is_die = False
-    player.use_radder = False
+    player.reset()
+    for enemy in enemies:
+        enemy.reset()
 
 
 class ParentApp:
