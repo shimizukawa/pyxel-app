@@ -20,9 +20,10 @@ TILE_SPAWN3 = (2, 1)
 scroll_x = 0
 _height = 0
 player = None
-is_loose = True
+is_loose = False
 show_bb = False
-is_pback = True
+is_pback = False
+score = 0
 
 
 def dbg(func):
@@ -108,6 +109,14 @@ def is_wall(x, y, *, include_ladder=False):
     return tile == TILE_FLOOR or tile[0] >= WALL_TILE_X
 
 
+def is_in_wall(x, y) -> bool:
+    if is_wall(x, y) or is_wall(x + 7, y):
+        return True
+    if is_wall(x, y + 7) or is_wall(x + 7, y + 7):
+        return True
+    return False
+
+
 class BaseEnemy:
     x: int
     y: int
@@ -144,21 +153,42 @@ class Enemy2(BaseEnemy):
         self.direction = 1
         self.is_alive = True
 
+    def is_other_enemy(self, x: int, y: int) -> bool:
+        for enemy in enemies:
+            if enemy is self:
+                continue
+            if abs(enemy.x - x) < 8 and abs(enemy.y - y) < 8:
+                return True
+        return False
+
+    def is_in_wall(self) -> bool:
+        return is_in_wall(self.x, self.y)
+
     def update(self):
+        if self.is_alive and self.is_in_wall():
+            self.is_alive = False
+            global score
+            score += 100
+            return
+
         self.dx = self.direction
         self.dy = min(self.dy + 1, 3)
+
         if is_wall(self.x, self.y + 8) or is_wall(self.x + 7, self.y + 8):
             if self.direction < 0 and (
-                is_wall(self.x - 1, self.y + 4) or not is_wall(self.x - 1, self.y + 8, include_ladder=True)
+                is_wall(self.x - 1, self.y + 4) or not is_wall(self.x - 1, self.y + 8, include_ladder=True) or self.is_other_enemy(self.x - 1, self.y)
             ):
                 self.direction = 1
             elif self.direction > 0 and (
-                is_wall(self.x + 8, self.y + 4) or not is_wall(self.x + 7, self.y + 8, include_ladder=True)
+                is_wall(self.x + 8, self.y + 4) or not is_wall(self.x + 7, self.y + 8, include_ladder=True) or self.is_other_enemy(self.x + 8, self.y)
             ):
                 self.direction = -1
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy, False)
 
     def draw(self):
+        if not self.is_alive:
+            return
+
         u = pyxel.frame_count // 4 % 2 * 8 + 16
         w = 8 if self.direction > 0 else -8
         self.img.blt(self.x, self.y, 0, u, 16, w, 8, TRANSPARENT_COLOR)
@@ -192,6 +222,9 @@ class Block:
     def __repr__(self):
         return f"Block({self.x=}, {self.y=}, {self.type=}, {self.damage=})"
 
+    def reset(self):
+        self.damage = 0
+
     @property
     def is_diggable(self) -> bool:
         return self.type == TILE_BRICK
@@ -199,26 +232,31 @@ class Block:
     @property
     def current_type(self) -> tuple[int, int]:
         if self.is_diggable:
-            return TILE_BRICK if self.damage < 60 else (0, 0)
+            return TILE_BRICK if self.damage < 20 else (0, 0)
         return self.type
 
     def dig(self) -> bool:
         if self.is_diggable:
-            self.damage = min(90, self.damage + 3)
+            if self.damage < 60 and 60 <= self.damage + 3:
+                self.damage = 180
+            elif 60 < self.damage:
+                pass
+            else:
+                self.damage = min(180, self.damage + 3)
             return True
         return False
 
     def update(self):
-        self.damage = min(90, self.damage)
+        self.damage = min(180, self.damage)
         self.damage = max(0, self.damage - 1)
 
     def draw(self):
         u, v = self.type
         if self.damage == 0:
             return
-        elif self.damage <= 30:
+        elif self.damage <= 20:
             u += 1
-        elif self.damage <= 60:
+        elif self.damage <= 40:
             u += 2
         else:
             u += 3
@@ -260,6 +298,9 @@ class Player:
     def die(self):
         self.is_die = True
 
+    def is_in_wall(self) -> bool:
+        return is_in_wall(self.x, self.y)
+
     def update_for_die(self):
         # サインカーブで飛び上がって落ちる
         df = pyxel.frame_count - self.frame_count 
@@ -276,6 +317,9 @@ class Player:
     def update(self):
         if self.is_die:
             return self.update_for_die()
+        elif self.is_in_wall():
+            self.die()
+            return
 
         self.frame_count = pyxel.frame_count
         global scroll_x
@@ -396,13 +440,13 @@ class App:
 
     def update(self):
         global is_loose, show_bb, is_pback
-        if pyxel.btnp(pyxel.KEY_1):
-            show_bb = not show_bb
-        elif pyxel.btnp(pyxel.KEY_2):
-            is_loose = not is_loose
-        elif pyxel.btnp(pyxel.KEY_3):
-            is_pback = not is_pback
-        elif pyxel.btnp(pyxel.KEY_4):
+        # if pyxel.btnp(pyxel.KEY_1):
+        #     show_bb = not show_bb
+        # elif pyxel.btnp(pyxel.KEY_2):
+        #     is_loose = not is_loose
+        # elif pyxel.btnp(pyxel.KEY_3):
+        #     is_pback = not is_pback
+        if pyxel.btnp(pyxel.KEY_4):
             game_over()
         for b in blocks.values():
             b.update()
@@ -411,6 +455,8 @@ class App:
             return
 
         for enemy in enemies:
+            if not enemy.is_alive:
+                continue
             if abs(player.x - enemy.x) < 6 and abs(player.y - enemy.y) < 6:
                 player.die()
                 return
@@ -427,10 +473,12 @@ class App:
         g.bltm(0, 0, 0, scroll_x, 0, 128, 128, TRANSPARENT_COLOR)
         for b in blocks.values():
             b.draw()
-        g.text(1, 1, "1:BBox", 7 if show_bb else 5)
-        g.text(32, 1, "2:Loose", 7 if is_loose else 5)
-        g.text(68, 1, "3:PBack", 7 if is_pback else 5)
-        g.text(104, 1, "4:RST", 5)
+        g.text(1, 1, "SCORE:", 5)
+        g.text(24, 1, f"{score:04d}", 7)
+        # g.text(1, 1, "1:BBox", 7 if show_bb else 5)
+        # g.text(32, 1, "2:Loose", 7 if is_loose else 5)
+        # g.text(68, 1, "3:PBack", 7 if is_pback else 5)
+        g.text(98, 1, "4:RST", 5)
 
         # Draw characters
         g.camera(scroll_x, 0)
@@ -446,11 +494,13 @@ def game_over():
     player.reset()
     for enemy in enemies:
         enemy.reset()
+    for b in blocks.values():
+        b.reset()
 
 
 class ParentApp:
     def __init__(self):
-        pyxel.init(128, 96, title="anahori")
+        pyxel.init(128, 96, title="anahori", fps=20)
         self.child = App(width=128, height=96)
         pyxel.run(self.update, self.draw)
 
